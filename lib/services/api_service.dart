@@ -8,8 +8,7 @@ import 'package:http/http.dart' as http;
 import '../utils/session.dart';
 
 class ApiService {
-  static const String baseUrl =
-      'http://10.0.2.2:8080';
+  static const String baseUrl = 'http://10.142.208.41:8080';
 
   // ============================================================
   // TEST CONNECTION
@@ -1324,6 +1323,36 @@ class ApiService {
     }
   }
 
+  // ==================== Mark All Notifications as Read ====================
+
+  static Future<bool> markAllNotificationsAsRead() async {
+    try {
+      final response = await http.put(
+        Uri.parse(
+          '$baseUrl/api/notifications/mark-all-read',
+        ),
+        headers: {
+          'Authorization': 'Bearer ${Session.token}',
+        },
+      );
+
+      debugPrint(
+        'Mark All Notifications Read Status: ${response.statusCode}',
+      );
+
+      debugPrint(
+        'Mark All Notifications Read Response: ${response.body}',
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint(
+        'Mark All Notifications Read Error: $e',
+      );
+
+      return false;
+    }
+  }
     // ==================== Save FCM Token ====================
 
   static Future<bool> saveFcmToken(
@@ -1360,6 +1389,57 @@ class ApiService {
         'Save FCM Token Error: $e',
       );
 
+      return false;
+    }
+  }
+  // ==================== Delete One Notification ====================
+
+  static Future<bool> deleteNotification(
+    int notificationId,
+  ) async {
+    try {
+      final response = await http.delete(
+        Uri.parse(
+          '$baseUrl/api/notifications/$notificationId',
+        ),
+        headers: {
+          'Authorization': 'Bearer ${Session.token}',
+        },
+      );
+
+      debugPrint(
+        'Delete Notification Status: ${response.statusCode}',
+      );
+
+      return response.statusCode == 200 ||
+          response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Delete Notification Error: $e');
+      return false;
+    }
+  }
+
+  // ==================== Clear All Notifications ====================
+
+  static Future<bool> clearAllNotifications() async {
+    try {
+      final response = await http.delete(
+        Uri.parse(
+          '$baseUrl/api/notifications/clear-all',
+        ),
+        headers: {
+          'Authorization': 'Bearer ${Session.token}',
+        },
+      );
+
+      debugPrint(
+        'Clear All Notifications Status: ${response.statusCode}',
+      );
+
+      return response.statusCode == 200 ||
+          response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Clear All Notifications Error: $e');
       return false;
     }
   }

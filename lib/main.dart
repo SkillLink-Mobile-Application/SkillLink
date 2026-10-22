@@ -5,19 +5,32 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'screens/welcome_screen.dart';
 import 'utils/app_colors.dart';
+import 'utils/session.dart';
 
 final FlutterLocalNotificationsPlugin
     flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(
+    RemoteMessage message) async {
+  await Firebase.initializeApp();
 
-  // ==================== Firebase ====================
+  debugPrint('========== BACKGROUND FCM ==========');
+  debugPrint('MESSAGE ID: ${message.messageId}');
+  debugPrint('TITLE: ${message.notification?.title}');
+  debugPrint('BODY: ${message.notification?.body}');
+  debugPrint('====================================');
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp();
 
-  // ==================== Notification Permission ====================
+  FirebaseMessaging.onBackgroundMessage(
+    firebaseMessagingBackgroundHandler,
+  );
 
   await FirebaseMessaging.instance.requestPermission(
     alert: true,
@@ -25,24 +38,15 @@ void main() async {
     sound: true,
   );
 
-  // ==================== Local Notifications ====================
-
-  const AndroidInitializationSettings
-      initializationSettingsAndroid =
-      AndroidInitializationSettings(
-    '@mipmap/ic_launcher',
-  );
+  const AndroidInitializationSettings androidSettings =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
 
   const InitializationSettings initializationSettings =
-      InitializationSettings(
-    android: initializationSettingsAndroid,
-  );
+      InitializationSettings(android: androidSettings);
 
   await flutterLocalNotificationsPlugin.initialize(
     settings: initializationSettings,
   );
-
-  // ==================== Android Notification Channel ====================
 
   const AndroidNotificationChannel channel =
       AndroidNotificationChannel(
@@ -58,58 +62,69 @@ void main() async {
           AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
 
-  // ==================== FCM Token ====================
+  final String? fcmToken =
+      await FirebaseMessaging.instance.getToken();
 
-  final token = await FirebaseMessaging.instance.getToken();
+  debugPrint('========== DEVICE FCM DEBUG ==========');
+  debugPrint('INITIAL TOKEN EXISTS: '
+      '${fcmToken != null && fcmToken.isNotEmpty}');
 
-  debugPrint('========== FCM TOKEN ==========');
-  debugPrint(token);
-  debugPrint('===============================');
+  if (fcmToken != null && fcmToken.isNotEmpty) {
+    debugPrint('TOKEN LENGTH: ${fcmToken.length}');
+    debugPrint(
+      'TOKEN FINGERPRINT: '
+      '${fcmToken.hashCode.toRadixString(16)}',
+    );
+  }
 
-  // ==================== Foreground FCM Messages ====================
+  debugPrint('======================================');
 
-  FirebaseMessaging.onMessage.listen(
-    (RemoteMessage message) async {
-      debugPrint(
-        'FOREGROUND FCM MESSAGE RECEIVED',
-      );
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+    debugPrint('========== FOREGROUND FCM ==========');
+    debugPrint('CURRENT SESSION EMAIL: ${Session.email}');
+    debugPrint('MESSAGE ID: ${message.messageId}');
+    debugPrint('TITLE: ${message.notification?.title}');
+    debugPrint('BODY: ${message.notification?.body}');
+    debugPrint('====================================');
 
-      debugPrint(
-        'TITLE: ${message.notification?.title}',
-      );
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+      'skilllink_notifications',
+      'SkillLink Notifications',
+      channelDescription: 'Notifications from SkillLink',
+      importance: Importance.high,
+      priority: Priority.high,
+      playSound: true,
+    );
 
-      debugPrint(
-        'BODY: ${message.notification?.body}',
-      );
+    const NotificationDetails notificationDetails =
+        NotificationDetails(android: androidDetails);
 
-      const AndroidNotificationDetails
-          androidNotificationDetails =
-          AndroidNotificationDetails(
-        'skilllink_notifications',
-        'SkillLink Notifications',
-        channelDescription:
-            'Notifications from SkillLink',
-        importance: Importance.high,
-        priority: Priority.high,
-        playSound: true,
-      );
+    await flutterLocalNotificationsPlugin.show(
+      id: message.messageId?.hashCode ?? message.hashCode,
+      title: message.notification?.title ?? 'SkillLink',
+      body: message.notification?.body ??
+          'You have a new notification',
+      notificationDetails: notificationDetails,
+    );
+  });
 
-      const NotificationDetails notificationDetails =
-          NotificationDetails(
-        android: androidNotificationDetails,
-      );
+  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    debugPrint('========== FCM OPENED ==========');
+    debugPrint('CURRENT SESSION EMAIL: ${Session.email}');
+    debugPrint('TITLE: ${message.notification?.title}');
+    debugPrint('BODY: ${message.notification?.body}');
+    debugPrint('================================');
+  });
 
-      await flutterLocalNotificationsPlugin.show(
-        id: message.hashCode,
-        title: message.notification?.title ?? 'SkillLink',
-        body: message.notification?.body ??
-            'You have a new notification',
-        notificationDetails: notificationDetails,
-      );
-          },
-  );
+  final RemoteMessage? initialMessage =
+      await FirebaseMessaging.instance.getInitialMessage();
 
-  // ==================== Start App ====================
+  if (initialMessage != null) {
+    debugPrint('APP OPENED FROM FCM NOTIFICATION');
+    debugPrint('TITLE: ${initialMessage.notification?.title}');
+    debugPrint('BODY: ${initialMessage.notification?.body}');
+  }
 
   runApp(const SkillLinkApp());
 }
@@ -129,31 +144,25 @@ class SkillLinkApp extends StatelessWidget {
           primary: AppColors.primary,
           secondary: AppColors.secondary,
         ),
-        scaffoldBackgroundColor:
-            AppColors.background,
+        scaffoldBackgroundColor: AppColors.background,
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           elevation: 0,
         ),
-        inputDecorationTheme:
-            InputDecorationTheme(
+        inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: AppColors.surface,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(
-              Radius.circular(12),
-            ),
+          border: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
           ),
         ),
-        elevatedButtonTheme:
-            ElevatedButtonThemeData(
+        elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),

@@ -7,12 +7,11 @@ import '../../widgets/section_header.dart';
 
 import '../customer/customer_home_screen.dart';
 import '../customer/reviews_screen.dart';
+import '../customer/notifications_screen.dart';
 import 'provider_profile_edit_screen.dart';
 import 'my_services_screen.dart';
 import 'provider_requests_screen.dart';
 import 'provider_bookings_screen.dart';
-
-// ==================== Provider Dashboard Screen ====================
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({super.key});
@@ -24,8 +23,6 @@ class ProviderDashboardScreen extends StatefulWidget {
 
 class _ProviderDashboardScreenState
     extends State<ProviderDashboardScreen> {
-  // ==================== Rating ====================
-
   double averageRating = 0.0;
   int reviewCount = 0;
   bool isLoadingRating = true;
@@ -35,25 +32,53 @@ class _ProviderDashboardScreenState
   int totalCustomers = 0;
   bool isLoadingStats = true;
 
-  // ==================== Init ====================
+  int unreadNotificationCount = 0;
+  bool isLoadingNotificationCount = true;
 
   @override
   void initState() {
     super.initState();
-
     loadProviderRating();
     loadDashboardStats();
+    loadUnreadNotificationCount();
   }
 
-  // ==================== Load Provider Rating ====================
+  Future<void> loadUnreadNotificationCount() async {
+    try {
+      final count = await ApiService.getUnreadNotificationCount();
+
+      if (!mounted) return;
+
+      setState(() {
+        unreadNotificationCount = count;
+        isLoadingNotificationCount = false;
+      });
+    } catch (e) {
+      debugPrint('UNREAD NOTIFICATION COUNT ERROR: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingNotificationCount = false;
+      });
+    }
+  }
+
+  Future<void> openNotifications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const NotificationsScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    loadUnreadNotificationCount();
+  }
 
   Future<void> loadProviderRating() async {
     final email = Session.email;
-
-    debugPrint('================================');
-    debugPrint('LOADING PROVIDER DASHBOARD RATING');
-    debugPrint('PROVIDER EMAIL: $email');
-    debugPrint('================================');
 
     if (email.isEmpty) {
       if (!mounted) return;
@@ -63,62 +88,29 @@ class _ProviderDashboardScreenState
         reviewCount = 0;
         isLoadingRating = false;
       });
-
       return;
     }
 
     try {
-      final result =
-          await ApiService.getProviderReviews(email);
-
-      debugPrint('DASHBOARD REVIEWS: $result');
-      debugPrint(
-        'DASHBOARD REVIEW COUNT: ${result.length}',
-      );
+      final result = await ApiService.getProviderReviews(email);
 
       double totalRating = 0.0;
 
       for (final review in result) {
-        final rating =
-            double.tryParse(
-                  review['rating']?.toString() ?? '0',
-                ) ??
-                0.0;
-
-        debugPrint(
-          'DASHBOARD REVIEW RATING: $rating',
-        );
-
-        totalRating += rating;
+        totalRating +=
+            double.tryParse(review['rating']?.toString() ?? '0') ?? 0.0;
       }
-
-      final double calculatedAverage =
-          result.isEmpty
-              ? 0.0
-              : totalRating / result.length;
-
-      debugPrint(
-        'DASHBOARD TOTAL RATING: $totalRating',
-      );
-
-      debugPrint(
-        'DASHBOARD AVERAGE RATING: '
-        '$calculatedAverage',
-      );
 
       if (!mounted) return;
 
       setState(() {
-        averageRating = calculatedAverage;
+        averageRating =
+            result.isEmpty ? 0.0 : totalRating / result.length;
         reviewCount = result.length;
         isLoadingRating = false;
       });
     } catch (e) {
-      debugPrint('================================');
-      debugPrint(
-        'DASHBOARD RATING ERROR: $e',
-      );
-      debugPrint('================================');
+      debugPrint('DASHBOARD RATING ERROR: $e');
 
       if (!mounted) return;
 
@@ -130,15 +122,8 @@ class _ProviderDashboardScreenState
     }
   }
 
-  // ==================== Load Dashboard Stats ====================
-
   Future<void> loadDashboardStats() async {
     final email = Session.email;
-
-    debugPrint('================================');
-    debugPrint('LOADING PROVIDER DASHBOARD STATS');
-    debugPrint('PROVIDER EMAIL: $email');
-    debugPrint('================================');
 
     if (email.isEmpty) {
       if (!mounted) return;
@@ -149,59 +134,30 @@ class _ProviderDashboardScreenState
         totalCustomers = 0;
         isLoadingStats = false;
       });
-
       return;
     }
 
     try {
-      final result =
-          await ApiService.getProviderRequests(
-        email: email,
-      );
-
-      debugPrint(
-        'DASHBOARD REQUESTS: $result',
-      );
-
-      debugPrint(
-        'DASHBOARD REQUEST COUNT: ${result.length}',
-      );
+      final result = await ApiService.getProviderRequests(email: email);
 
       int pending = 0;
       int completed = 0;
-
       final Set<String> customerIds = {};
 
       for (final request in result) {
         final status =
-            request['status']
-                    ?.toString()
-                    .toUpperCase() ??
-                '';
+            request['status']?.toString().toUpperCase() ?? '';
 
-        debugPrint(
-          'REQUEST STATUS: $status',
-        );
-
-        if (status == 'PENDING') {
-          pending++;
-        }
-
-        if (status == 'COMPLETED') {
-          completed++;
-        }
+        if (status == 'PENDING') pending++;
+        if (status == 'COMPLETED') completed++;
 
         final customer = request['customer'];
 
         if (customer != null) {
-          final customerId =
-              customer['id']?.toString();
+          final customerId = customer['id']?.toString();
+          final customerEmail = customer['email']?.toString();
 
-          final customerEmail =
-              customer['email']?.toString();
-
-          if (customerId != null &&
-              customerId.isNotEmpty) {
+          if (customerId != null && customerId.isNotEmpty) {
             customerIds.add(customerId);
           } else if (customerEmail != null &&
               customerEmail.isNotEmpty) {
@@ -209,18 +165,6 @@ class _ProviderDashboardScreenState
           }
         }
       }
-
-      debugPrint(
-        'PENDING REQUESTS: $pending',
-      );
-
-      debugPrint(
-        'COMPLETED REQUESTS: $completed',
-      );
-
-      debugPrint(
-        'UNIQUE CUSTOMERS: ${customerIds.length}',
-      );
 
       if (!mounted) return;
 
@@ -231,11 +175,7 @@ class _ProviderDashboardScreenState
         isLoadingStats = false;
       });
     } catch (e) {
-      debugPrint('================================');
-      debugPrint(
-        'DASHBOARD STATS ERROR: $e',
-      );
-      debugPrint('================================');
+      debugPrint('DASHBOARD STATS ERROR: $e');
 
       if (!mounted) return;
 
@@ -248,22 +188,15 @@ class _ProviderDashboardScreenState
     }
   }
 
-  // ==================== Switch to Customer ====================
-
-  Future<void> switchToCustomer(
-    BuildContext context,
-  ) async {
+  Future<void> switchToCustomer(BuildContext context) async {
     final email = Session.email;
 
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'User session not found. Please login again.',
-          ),
+          content: Text('User session not found. Please login again.'),
         ),
       );
-
       return;
     }
 
@@ -271,11 +204,9 @@ class _ProviderDashboardScreenState
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              const CustomerHomeScreen(),
+          builder: (context) => const CustomerHomeScreen(),
         ),
       );
-
       return;
     }
 
@@ -291,44 +222,69 @@ class _ProviderDashboardScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'You can now use SkillLink as a Customer!',
-          ),
+          content: Text('You can now use SkillLink as a Customer!'),
         ),
       );
 
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              const CustomerHomeScreen(),
+          builder: (context) => const CustomerHomeScreen(),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Could not switch to Customer.',
-          ),
+          content: Text('Could not switch to Customer.'),
         ),
       );
     }
   }
 
-  // ==================== Build ====================
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Provider Dashboard',
-        ),
+        title: const Text('Provider Dashboard'),
         actions: [
           IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_outlined,
+            tooltip: 'Notifications',
+            onPressed: openNotifications,
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_outlined),
+                if (unreadNotificationCount > 0)
+                  Positioned(
+                    right: -7,
+                    top: -7,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        unreadNotificationCount > 99
+                            ? '99+'
+                            : unreadNotificationCount.toString(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(width: 8),
@@ -337,11 +293,8 @@ class _ProviderDashboardScreenState
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ==================== Welcome ====================
-
             const Text(
               'Welcome, Service Provider!',
               style: TextStyle(
@@ -350,9 +303,7 @@ class _ProviderDashboardScreenState
                 color: AppColors.textPrimary,
               ),
             ),
-
             const SizedBox(height: 6),
-
             const Text(
               'Manage your services and customer requests.',
               style: TextStyle(
@@ -360,18 +311,14 @@ class _ProviderDashboardScreenState
                 color: AppColors.textSecondary,
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // ==================== My Profile ====================
 
             _dashboardTile(
               context,
               icon: Icons.person_rounded,
               color: AppColors.primary,
               title: 'My Profile',
-              subtitle:
-                  'View and edit your provider profile',
+              subtitle: 'View and edit your provider profile',
               onTap: () {
                 Navigator.push(
                   context,
@@ -382,100 +329,71 @@ class _ProviderDashboardScreenState
                 );
               },
             ),
-
             const SizedBox(height: 12),
-
-            // ==================== My Services ====================
 
             _dashboardTile(
               context,
               icon: Icons.build_rounded,
               color: AppColors.secondary,
               title: 'My Services',
-              subtitle:
-                  'Manage the services you provide',
+              subtitle: 'Manage the services you provide',
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        const MyServicesScreen(),
+                    builder: (context) => const MyServicesScreen(),
                   ),
                 );
               },
             ),
-
             const SizedBox(height: 12),
-
-            // ==================== Service Requests ====================
 
             _dashboardTile(
               context,
               icon: Icons.assignment_rounded,
               color: AppColors.warning,
               title: 'Service Requests',
-              subtitle:
-                  'View customer service requests',
+              subtitle: 'View customer service requests',
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        const ProviderRequestsScreen(),
+                    builder: (context) => const ProviderRequestsScreen(),
                   ),
                 );
               },
             ),
-
             const SizedBox(height: 12),
-
-            // ==================== My Bookings ====================
 
             _dashboardTile(
               context,
               icon: Icons.calendar_month_rounded,
               color: AppColors.success,
               title: 'My Bookings',
-              subtitle:
-                  'View accepted and completed bookings',
+              subtitle: 'View accepted and completed bookings',
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        const ProviderBookingsScreen(),
+                    builder: (context) => const ProviderBookingsScreen(),
                   ),
                 );
               },
             ),
-
             const SizedBox(height: 12),
-
-            // ==================== Switch to Customer ====================
 
             _dashboardTile(
               context,
               icon: Icons.person_search_rounded,
               color: AppColors.primary,
               title: 'Switch to Customer',
-              subtitle:
-                  'Find and book services from other providers',
-              onTap: () {
-                switchToCustomer(context);
-              },
+              subtitle: 'Find and book services from other providers',
+              onTap: () => switchToCustomer(context),
             ),
-
             const SizedBox(height: 28),
 
-            // ==================== Overview ====================
-
-            const SectionHeader(
-              title: 'Overview',
-            ),
-
+            const SectionHeader(title: 'Overview'),
             const SizedBox(height: 16),
-
-            // ==================== Requests / Completed ====================
 
             Row(
               children: [
@@ -483,15 +401,11 @@ class _ProviderDashboardScreenState
                   child: _statCard(
                     icon: Icons.pending_actions_rounded,
                     title: 'Requests',
-                    value: isLoadingStats
-                        ? '...'
-                        : pendingRequests.toString(),
+                    value: isLoadingStats ? '...' : pendingRequests.toString(),
                     color: AppColors.warning,
                   ),
                 ),
-
                 const SizedBox(width: 12),
-
                 Expanded(
                   child: _statCard(
                     icon: Icons.check_circle_rounded,
@@ -504,31 +418,21 @@ class _ProviderDashboardScreenState
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
-            // ==================== Rating / Customers ====================
 
             Row(
               children: [
-                // ==================== RATING ====================
-
                 Expanded(
                   child: _statCard(
                     icon: Icons.star_rounded,
                     title: 'Rating',
                     value: isLoadingRating
                         ? '...'
-                        : averageRating
-                            .toStringAsFixed(1),
+                        : averageRating.toStringAsFixed(1),
                     color: AppColors.secondary,
                   ),
                 ),
-
                 const SizedBox(width: 12),
-
-                // ==================== CUSTOMERS ====================
-
                 Expanded(
                   child: _statCard(
                     icon: Icons.people_rounded,
@@ -541,10 +445,7 @@ class _ProviderDashboardScreenState
                 ),
               ],
             ),
-
             const SizedBox(height: 8),
-
-            // ==================== VIEW REVIEWS ====================
 
             Center(
               child: TextButton.icon(
@@ -553,10 +454,7 @@ class _ProviderDashboardScreenState
                     context,
                     MaterialPageRoute(
                       builder: (context) =>
-                          ReviewsScreen(
-                        providerEmail:
-                            Session.email,
-                      ),
+                          ReviewsScreen(providerEmail: Session.email),
                     ),
                   );
                 },
@@ -580,8 +478,6 @@ class _ProviderDashboardScreenState
     );
   }
 
-  // ==================== Dashboard Tile ====================
-
   Widget _dashboardTile(
     BuildContext context, {
     required IconData icon,
@@ -592,70 +488,49 @@ class _ProviderDashboardScreenState
   }) {
     return Card(
       child: InkWell(
-        borderRadius:
-            BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding:
-              const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               Container(
                 width: 50,
                 height: 50,
-                decoration:
-                    BoxDecoration(
-                  color:
-                      color.withValues(alpha: 0.12),
-                  borderRadius:
-                      BorderRadius.circular(12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 26,
-                ),
+                child: Icon(icon, color: color, size: 26),
               ),
-
               const SizedBox(width: 14),
-
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.w700,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
                         fontSize: 16,
-                        color:
-                            AppColors.textPrimary,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-
                     const SizedBox(height: 3),
-
                     Text(
                       subtitle,
-                      style:
-                          const TextStyle(
+                      style: const TextStyle(
                         fontSize: 12.5,
-                        color:
-                            AppColors.textSecondary,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ),
-
               const Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 16,
-                color:
-                    AppColors.textSecondary,
+                color: AppColors.textSecondary,
               ),
             ],
           ),
@@ -663,8 +538,6 @@ class _ProviderDashboardScreenState
       ),
     );
   }
-
-  // ==================== Stat Card ====================
 
   Widget _statCard({
     required IconData icon,
@@ -674,47 +547,33 @@ class _ProviderDashboardScreenState
   }) {
     return Card(
       child: Padding(
-        padding:
-            const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Container(
               width: 44,
               height: 44,
-              decoration:
-                  BoxDecoration(
-                color:
-                    color.withValues(alpha: 0.12),
-                borderRadius:
-                    BorderRadius.circular(12),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                size: 22,
-                color: color,
-              ),
+              child: Icon(icon, size: 22, color: color),
             ),
-
             const SizedBox(height: 10),
-
             Text(
               value,
               style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
-                color:
-                    AppColors.textPrimary,
+                color: AppColors.textPrimary,
               ),
             ),
-
             const SizedBox(height: 4),
-
             Text(
               title,
               style: const TextStyle(
                 fontSize: 12.5,
-                color:
-                    AppColors.textSecondary,
+                color: AppColors.textSecondary,
               ),
             ),
           ],

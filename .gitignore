@@ -46,3 +46,15 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local machine settings
+/android/local.properties
+/.vscode/
+
+# Firebase / service account secrets
+*service-account*.json
