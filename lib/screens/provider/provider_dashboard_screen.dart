@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
@@ -35,12 +36,157 @@ class _ProviderDashboardScreenState
   int unreadNotificationCount = 0;
   bool isLoadingNotificationCount = true;
 
+  String approvalStatus = 'LOADING';
+  bool isLoadingApproval = true;
+
   @override
   void initState() {
     super.initState();
     loadProviderRating();
+    loadProviderApprovalStatus();
     loadDashboardStats();
     loadUnreadNotificationCount();
+  }
+
+  // Load provider approval status from backend
+  Future<void> loadProviderApprovalStatus() async {
+    final email = Session.email;
+
+    if (email.isEmpty) {
+      if (!mounted) return;
+
+      setState(() {
+        approvalStatus = 'UNKNOWN';
+        isLoadingApproval = false;
+      });
+      return;
+    }
+
+    try {
+      final profile = await ApiService.getProviderProfile(email);
+
+      if (!mounted) return;
+
+      setState(() {
+        approvalStatus =
+            profile?['approvalStatus']?.toString().toUpperCase() ??
+                'UNKNOWN';
+        isLoadingApproval = false;
+      });
+
+      debugPrint('PROVIDER APPROVAL STATUS: $approvalStatus');
+    } catch (e) {
+      debugPrint('PROVIDER APPROVAL STATUS ERROR: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        approvalStatus = 'UNKNOWN';
+        isLoadingApproval = false;
+      });
+    }
+  }
+
+  // Approval status message widget
+  Widget _approvalStatusCard() {
+    if (isLoadingApproval) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    late final Color statusColor;
+    late final Color backgroundColor;
+    late final IconData statusIcon;
+    late final String title;
+    late final String message;
+
+    switch (approvalStatus) {
+      case 'PENDING':
+        statusColor = Colors.orange.shade800;
+        backgroundColor = Colors.orange.shade50;
+        statusIcon = Icons.hourglass_top_rounded;
+        title = 'Approval Pending';
+        message =
+            'Your application is waiting for admin approval. You cannot accept service requests until your account is approved.';
+        break;
+
+      case 'APPROVED':
+        statusColor = Colors.green.shade800;
+        backgroundColor = Colors.green.shade50;
+        statusIcon = Icons.verified_rounded;
+        title = 'Provider Approved';
+        message =
+            'Your provider account has been approved. You can now accept service requests.';
+        break;
+
+      case 'REJECTED':
+        statusColor = Colors.red.shade800;
+        backgroundColor = Colors.red.shade50;
+        statusIcon = Icons.cancel_rounded;
+        title = 'Application Rejected';
+        message =
+            'Your provider application has been rejected. Please contact the administrator for more information.';
+        break;
+
+      default:
+        statusColor = Colors.blueGrey.shade700;
+        backgroundColor = Colors.blueGrey.shade50;
+        statusIcon = Icons.info_outline_rounded;
+        title = 'Approval Status Unavailable';
+        message =
+            'Unable to load your approval status. Please check your internet connection and reopen the dashboard.';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: statusColor.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            statusIcon,
+            color: statusColor,
+            size: 28,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: statusColor,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: statusColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> loadUnreadNotificationCount() async {
@@ -194,7 +340,7 @@ class _ProviderDashboardScreenState
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('User session not found. Please login again.'),
+          content: Text('User session not found. Please log in again.'),
         ),
       );
       return;
@@ -222,7 +368,7 @@ class _ProviderDashboardScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('You can now use SkillLink as a Customer!'),
+          content: Text('You can now use SkillLink as a customer!'),
         ),
       );
 
@@ -235,7 +381,7 @@ class _ProviderDashboardScreenState
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Could not switch to Customer.'),
+          content: Text('Unable to switch to customer mode.'),
         ),
       );
     }
@@ -311,6 +457,10 @@ class _ProviderDashboardScreenState
                 color: AppColors.textSecondary,
               ),
             ),
+            const SizedBox(height: 16),
+
+            _approvalStatusCard(),
+
             const SizedBox(height: 24),
 
             _dashboardTile(
@@ -353,7 +503,9 @@ class _ProviderDashboardScreenState
               icon: Icons.assignment_rounded,
               color: AppColors.warning,
               title: 'Service Requests',
-              subtitle: 'View customer service requests',
+              subtitle: approvalStatus == 'APPROVED'
+                  ? 'View and manage customer requests'
+                  : 'View requests; approval is required to accept them',
               onTap: () {
                 Navigator.push(
                   context,

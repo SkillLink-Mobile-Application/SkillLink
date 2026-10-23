@@ -696,16 +696,14 @@ class ApiService {
   // UPDATE SERVICE REQUEST STATUS
   // ============================================================
 
-  static Future<bool>
-      updateServiceRequestStatus({
+  static Future<bool> updateServiceRequestStatus({
     required int requestId,
     required String email,
     required String status,
   }) async {
     try {
       final uri = Uri.parse(
-        '$baseUrl/api/service-requests/'
-        'update-status/$requestId',
+        '$baseUrl/api/service-requests/update-status/$requestId',
       ).replace(
         queryParameters: {
           'email': email,
@@ -716,22 +714,16 @@ class ApiService {
       final response = await http.put(uri);
 
       debugPrint(
-        'Update Request Status Code: '
-        '${response.statusCode}',
+        'Update Request Status Code: ${response.statusCode}',
       );
 
       debugPrint(
-        'Update Request Response: '
-        '${response.body}',
+        'Update Request Response: ${response.body}',
       );
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint(
-        'Update Request Status Error: '
-        '$e',
-      );
-
+      debugPrint('Update Request Status Error: $e');
       return false;
     }
   }
