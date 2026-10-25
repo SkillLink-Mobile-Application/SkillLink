@@ -168,9 +168,14 @@ class ApiService {
     required String email,
     required String name,
     required String phone,
+    required String nicNumber,
     required String location,
     required int experience,
     required String description,
+    required String serviceCategory,
+    required String certificateName,
+    required String issuingInstitute,
+    required bool termsAccepted,
   }) async {
     try {
       final response = await http.post(
@@ -182,11 +187,14 @@ class ApiService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
+          'nicNumber': nicNumber,
           'location': location,
           'experience': experience,
           'description': description,
-
-          // User data
+          'serviceCategory': serviceCategory,
+          'certificateName': certificateName,
+          'issuingInstitute': issuingInstitute,
+          'termsAccepted': termsAccepted,
           'user': {
             'name': name,
             'phone': phone,
@@ -195,21 +203,16 @@ class ApiService {
       );
 
       debugPrint(
-        'Provider Profile Status Code: '
-        '${response.statusCode}',
+        'Provider Profile Status Code: ${response.statusCode}',
       );
 
       debugPrint(
-        'Provider Profile Response: '
-        '${response.body}',
+        'Provider Profile Response: ${response.body}',
       );
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint(
-        'Provider Profile Error: $e',
-      );
-
+      debugPrint('Provider Profile Error: $e');
       return false;
     }
   }
