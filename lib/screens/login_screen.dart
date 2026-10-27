@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../services/api_service.dart';
-import '../utils/app_colors.dart';
 import '../utils/session.dart';
 import 'choose_role_screen.dart';
 import 'register_screen.dart';
+
+// Yellow & black palette (local to this screen)
+const Color _kYellow = Color(0xFFFFC400);
+const Color _kBlack = Color(0xFF0D0D0D);
+const Color _kBlackLight = Color(0xFF1E1E1E);
+const Color _kBackground = Color(0xFFFAFAF7);
+const Color _kTextSecondary = Color(0xFF6B6B6B);
+const Color _kBorder = Color(0xFFE4E4DE);
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -173,123 +181,316 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
+  // ---------------------------------------------------------------------------
+  // UI helpers
+  // ---------------------------------------------------------------------------
+
+  InputDecoration _fieldDecoration({
+    required String label,
+    required IconData icon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(
+        color: _kTextSecondary,
+        fontSize: 14.5,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
+      floatingLabelStyle: const TextStyle(
+        color: _kBlack,
+        fontWeight: FontWeight.w700,
+      ),
+      prefixIcon: Icon(icon, color: _kBlack, size: 22),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 18,
+        horizontal: 16,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: _kBorder),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: _kBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: _kYellow, width: 2),
+      ),
+    );
+  }
 
-            Container(
-              width: 84,
-              height: 84,
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_kBlackLight, _kBlack],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -60,
+            top: -50,
+            child: Container(
+              width: 190,
+              height: 190,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.person_rounded,
-                size: 44,
-                color: AppColors.primary,
+                color: _kYellow.withValues(alpha: 0.10),
               ),
             ),
-
-            const SizedBox(height: 24),
-
-            const Text(
-              'Welcome Back!',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
+          ),
+          Positioned(
+            left: -40,
+            bottom: -70,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _kYellow.withValues(alpha: 0.07),
               ),
             ),
-
-            const SizedBox(height: 6),
-
-            const Text(
-              'Login to continue using SkillLink',
-              style: TextStyle(
-                fontSize: 15,
-                color: AppColors.textSecondary,
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-                prefixIcon: Icon(Icons.lock_outline),
-              ),
-              onSubmitted: (_) {
-                if (!isLoading) login();
-              },
-            ),
-
-            const SizedBox(height: 28),
-
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : login,
-                child: isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text(
-                        'Login',
-                        style: TextStyle(fontSize: 17),
+          ),
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 24, 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Back button
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
                       ),
+                    ),
+                    child: IconButton(
+                      onPressed: () => Navigator.maybePop(context),
+                      tooltip: 'Back',
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _kYellow,
+                      boxShadow: [
+                        BoxShadow(
+                          color: _kYellow.withValues(alpha: 0.40),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      size: 38,
+                      color: _kBlack,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const Text(
+                    'Welcome Back!',
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.8,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Login to continue using SkillLink',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
+                  ),
+                ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            const SizedBox(height: 16),
+  Widget _buildForm() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
+      decoration: const BoxDecoration(
+        color: _kBackground,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(32),
+          topRight: Radius.circular(32),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            autocorrect: false,
+            cursorColor: _kBlack,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: _kBlack,
+            ),
+            decoration: _fieldDecoration(
+              label: 'Email',
+              icon: Icons.email_outlined,
+            ),
+          ),
 
-            Center(
-              child: TextButton(
-                onPressed: isLoading
-                    ? null
-                    : () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const RegisterScreen(),
-                          ),
-                        );
-                      },
-                child: const Text(
-                  "Don't have an account? Register",
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: passwordController,
+            obscureText: true,
+            cursorColor: _kBlack,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: _kBlack,
+            ),
+            decoration: _fieldDecoration(
+              label: 'Password',
+              icon: Icons.lock_outline,
+            ),
+            onSubmitted: (_) {
+              if (!isLoading) login();
+            },
+          ),
+
+          const SizedBox(height: 28),
+
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kYellow,
+                foregroundColor: _kBlack,
+                disabledBackgroundColor: _kYellow.withValues(alpha: 0.65),
+                disabledForegroundColor: _kBlack,
+                elevation: 0,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              onPressed: isLoading ? null : login,
+              child: isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: _kBlack,
+                      ),
+                    )
+                  : const Text(
+                      'Login',
+                      style: TextStyle(fontSize: 17),
+                    ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          Center(
+            child: TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: _kBlack,
+              ),
+              onPressed: isLoading
+                  ? null
+                  : () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterScreen(),
+                        ),
+                      );
+                    },
+              child: const Text.rich(
+                TextSpan(
+                  text: "Don't have an account? ",
+                  style: TextStyle(
+                    color: _kTextSecondary,
+                    fontSize: 14,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: 'Register',
+                      style: TextStyle(
+                        color: _kBlack,
+                        fontWeight: FontWeight.w800,
+                        decoration: TextDecoration.underline,
+                        decorationColor: _kYellow,
+                        decorationThickness: 2.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: _kBlack,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      _buildHeader(),
+                      Expanded(child: _buildForm()),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
