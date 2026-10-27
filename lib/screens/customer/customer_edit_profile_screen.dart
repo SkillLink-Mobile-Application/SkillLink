@@ -1,10 +1,17 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../services/api_service.dart';
-import '../../utils/app_colors.dart';
+
+// Yellow & black palette (local to this screen)
+const Color _kYellow = Color(0xFFFFC400);
+const Color _kBlack = Color(0xFF0D0D0D);
+const Color _kBackground = Color(0xFFF6F6F2);
+const Color _kTextSecondary = Color(0xFF6B6B6B);
+const Color _kBorder = Color(0xFFE4E4DE);
 
 class CustomerEditProfileScreen extends StatefulWidget {
   final String name;
@@ -209,18 +216,98 @@ class _CustomerEditProfileScreenState
     );
   }
 
+  // ================= UI HELPERS =================
+
+  InputDecoration _fieldDecoration({
+    required String hint,
+    required IconData icon,
+    Widget? suffix,
+    Color fill = Colors.white,
+    bool readOnly = false,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(
+        color: _kTextSecondary,
+        fontSize: 14.5,
+      ),
+      prefixIcon: Icon(
+        icon,
+        color: readOnly ? _kTextSecondary : _kBlack,
+        size: 22,
+      ),
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: fill,
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 17,
+        horizontal: 16,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: _kBorder),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: _kBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: _kYellow, width: 2),
+      ),
+    );
+  }
+
+  Widget _fieldLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: _kBlack,
+      ),
+    );
+  }
+
+  static const TextStyle _inputStyle = TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w500,
+    color: _kBlack,
+  );
+
   // ================= BUILD =================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _kBackground,
       appBar: AppBar(
+        backgroundColor: _kBlack,
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+          ),
+        ),
         title: const Text(
           'Edit Profile',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.3,
+          ),
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
+          keyboardDismissBehavior:
+              ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(
             20,
             24,
@@ -241,30 +328,32 @@ class _CustomerEditProfileScreenState
                     Stack(
                       children: [
 
-                        CircleAvatar(
-                          radius: 58,
-                          backgroundColor:
-                              AppColors.primary
-                                  .withValues(
-                            alpha: 0.1,
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: _kYellow,
+                            shape: BoxShape.circle,
                           ),
-                          backgroundImage:
-                              selectedImage != null
-                                  ? FileImage(
-                                      selectedImage!,
-                                    )
-                                  : null,
-                          child:
-                              selectedImage == null
-                                  ? const Icon(
-                                      Icons
-                                          .person_rounded,
-                                      size: 62,
-                                      color:
-                                          AppColors
-                                              .primary,
-                                    )
-                                  : null,
+                          child: CircleAvatar(
+                            radius: 56,
+                            backgroundColor:
+                                const Color(0xFFFFF3C4),
+                            backgroundImage:
+                                selectedImage != null
+                                    ? FileImage(
+                                        selectedImage!,
+                                      )
+                                    : null,
+                            child:
+                                selectedImage == null
+                                    ? const Icon(
+                                        Icons
+                                            .person_rounded,
+                                        size: 60,
+                                        color: _kBlack,
+                                      )
+                                    : null,
+                          ),
                         ),
 
                         Positioned(
@@ -277,12 +366,11 @@ class _CustomerEditProfileScreenState
                                     ? null
                                     : pickProfileImage,
                             child: Container(
-                              width: 38,
-                              height: 38,
+                              width: 40,
+                              height: 40,
                               decoration:
                                   BoxDecoration(
-                                color:
-                                    AppColors.primary,
+                                color: _kBlack,
                                 shape:
                                     BoxShape.circle,
                                 border:
@@ -295,8 +383,7 @@ class _CustomerEditProfileScreenState
                               child: const Icon(
                                 Icons
                                     .camera_alt_rounded,
-                                color:
-                                    Colors.white,
+                                color: _kYellow,
                                 size: 19,
                               ),
                             ),
@@ -306,7 +393,7 @@ class _CustomerEditProfileScreenState
                     ),
 
                     const SizedBox(
-                      height: 12,
+                      height: 14,
                     ),
 
                     const Text(
@@ -314,9 +401,8 @@ class _CustomerEditProfileScreenState
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight:
-                            FontWeight.w600,
-                        color:
-                            AppColors.textPrimary,
+                            FontWeight.w700,
+                        color: _kBlack,
                       ),
                     ),
 
@@ -328,9 +414,7 @@ class _CustomerEditProfileScreenState
                       'Tap the camera icon to change your photo',
                       style: TextStyle(
                         fontSize: 12,
-                        color:
-                            AppColors
-                                .textSecondary,
+                        color: _kTextSecondary,
                       ),
                       textAlign:
                           TextAlign.center,
@@ -340,200 +424,177 @@ class _CustomerEditProfileScreenState
               ),
 
               const SizedBox(
-                height: 32,
+                height: 30,
               ),
 
               // ================= PERSONAL INFORMATION =================
 
-              const Text(
-                'Personal Information',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight:
-                      FontWeight.w800,
-                  color:
-                      AppColors.textPrimary,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                      BorderRadius.circular(24),
+                  border: Border.all(color: _kBorder),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black
+                          .withValues(alpha: 0.04),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: _kYellow,
+                            borderRadius:
+                                BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Personal Information',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight:
+                                FontWeight.w800,
+                            color: _kBlack,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                      height: 6,
+                    ),
+
+                    const Text(
+                      'Update your personal details below.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _kTextSecondary,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 22,
+                    ),
+
+                    // ================= FULL NAME =================
+
+                    _fieldLabel('Full Name'),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
+                    TextField(
+                      controller:
+                          nameController,
+                      cursorColor: _kBlack,
+                      style: _inputStyle,
+                      textCapitalization:
+                          TextCapitalization
+                              .words,
+                      decoration:
+                          _fieldDecoration(
+                        hint:
+                            'Enter your full name',
+                        icon: Icons
+                            .person_outline_rounded,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 20,
+                    ),
+
+                    // ================= EMAIL =================
+
+                    _fieldLabel('Email Address'),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
+                    TextField(
+                      controller:
+                          emailController,
+                      readOnly: true,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: _kTextSecondary,
+                      ),
+                      decoration:
+                          _fieldDecoration(
+                        hint: 'Email address',
+                        icon: Icons.email_outlined,
+                        suffix: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 20,
+                          color: _kTextSecondary,
+                        ),
+                        fill: const Color(0xFFF1F1EC),
+                        readOnly: true,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
+                    const Text(
+                      'Email address cannot be changed.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _kTextSecondary,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 20,
+                    ),
+
+                    // ================= PHONE =================
+
+                    _fieldLabel('Phone Number'),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
+                    TextField(
+                      controller:
+                          phoneController,
+                      cursorColor: _kBlack,
+                      style: _inputStyle,
+                      keyboardType:
+                          TextInputType.phone,
+                      decoration:
+                          _fieldDecoration(
+                        hint:
+                            'Enter your phone number',
+                        icon: Icons.phone_outlined,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
               const SizedBox(
-                height: 6,
-              ),
-
-              const Text(
-                'Update your personal details below.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color:
-                      AppColors.textSecondary,
-                ),
-              ),
-
-              const SizedBox(
-                height: 20,
-              ),
-
-              // ================= FULL NAME =================
-
-              const Text(
-                'Full Name',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight:
-                      FontWeight.w600,
-                  color:
-                      AppColors.textPrimary,
-                ),
-              ),
-
-              const SizedBox(
-                height: 8,
-              ),
-
-              TextField(
-                controller:
-                    nameController,
-                textCapitalization:
-                    TextCapitalization
-                        .words,
-                decoration:
-                    InputDecoration(
-                  hintText:
-                      'Enter your full name',
-                  prefixIcon:
-                      const Icon(
-                    Icons
-                        .person_outline_rounded,
-                  ),
-                  filled: true,
-                  fillColor:
-                      Colors.white,
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius
-                            .circular(14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(
-                height: 20,
-              ),
-
-              // ================= EMAIL =================
-
-              const Text(
-                'Email Address',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight:
-                      FontWeight.w600,
-                  color:
-                      AppColors.textPrimary,
-                ),
-              ),
-
-              const SizedBox(
-                height: 8,
-              ),
-
-              TextField(
-                controller:
-                    emailController,
-                readOnly: true,
-                decoration:
-                    InputDecoration(
-                  hintText:
-                      'Email address',
-                  prefixIcon:
-                      const Icon(
-                    Icons
-                        .email_outlined,
-                  ),
-                  suffixIcon:
-                      const Icon(
-                    Icons
-                        .lock_outline_rounded,
-                    size: 20,
-                  ),
-                  filled: true,
-                  fillColor:
-                      const Color(
-                    0xFFF0F2F5,
-                  ),
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius
-                            .circular(14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(
-                height: 8,
-              ),
-
-              const Text(
-                'Email address cannot be changed.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color:
-                      AppColors
-                          .textSecondary,
-                ),
-              ),
-
-              const SizedBox(
-                height: 20,
-              ),
-
-              // ================= PHONE =================
-
-              const Text(
-                'Phone Number',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight:
-                      FontWeight.w600,
-                  color:
-                      AppColors.textPrimary,
-                ),
-              ),
-
-              const SizedBox(
-                height: 8,
-              ),
-
-              TextField(
-                controller:
-                    phoneController,
-                keyboardType:
-                    TextInputType.phone,
-                decoration:
-                    InputDecoration(
-                  hintText:
-                      'Enter your phone number',
-                  prefixIcon:
-                      const Icon(
-                    Icons
-                        .phone_outlined,
-                  ),
-                  filled: true,
-                  fillColor:
-                      Colors.white,
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius
-                            .circular(14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(
-                height: 32,
+                height: 28,
               ),
 
               // ================= SAVE BUTTON =================
@@ -541,7 +602,7 @@ class _CustomerEditProfileScreenState
               SizedBox(
                 width:
                     double.infinity,
-                height: 54,
+                height: 56,
                 child:
                     ElevatedButton(
                   onPressed:
@@ -550,20 +611,22 @@ class _CustomerEditProfileScreenState
                           : saveProfile,
                   style:
                       ElevatedButton.styleFrom(
-                    backgroundColor:
-                        AppColors.primary,
-                    foregroundColor:
-                        Colors.white,
+                    backgroundColor: _kYellow,
+                    foregroundColor: _kBlack,
                     disabledBackgroundColor:
-                        AppColors.primary
-                            .withValues(
-                      alpha: 0.6,
+                        _kYellow.withValues(
+                      alpha: 0.65,
                     ),
+                    disabledForegroundColor:
+                        _kBlack,
+                    elevation: 0,
+                    shadowColor:
+                        Colors.transparent,
                     shape:
                         RoundedRectangleBorder(
                       borderRadius:
                           BorderRadius
-                              .circular(14),
+                              .circular(16),
                     ),
                   ),
                   child:
@@ -575,8 +638,7 @@ class _CustomerEditProfileScreenState
                                   CircularProgressIndicator(
                                 strokeWidth:
                                     2.5,
-                                color:
-                                    Colors.white,
+                                color: _kBlack,
                               ),
                             )
                           : const Row(
@@ -600,7 +662,7 @@ class _CustomerEditProfileScreenState
                                         16,
                                     fontWeight:
                                         FontWeight
-                                            .w700,
+                                            .w800,
                                   ),
                                 ),
                               ],

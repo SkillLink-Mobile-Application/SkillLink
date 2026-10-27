@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/api_service.dart';
 import '../../utils/session.dart';
-import '../../widgets/status_badge.dart';
-import '../../utils/app_colors.dart';
 import 'rate_provider_screen.dart';
+
+// Yellow & black palette (local to this screen)
+const Color _kYellow = Color(0xFFFFC400);
+const Color _kBlack = Color(0xFF0D0D0D);
+const Color _kBackground = Color(0xFFF6F6F2);
+const Color _kTextSecondary = Color(0xFF6B6B6B);
+const Color _kBorder = Color(0xFFE4E4DE);
 
 //==================== Customer Bookings Screen ====================
 
@@ -106,24 +112,41 @@ class _CustomerBookingsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _kBackground,
       appBar: AppBar(
-        title: const Text('My Bookings'),
+        backgroundColor: _kBlack,
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+          ),
+        ),
+        title: const Text(
+          'My Bookings',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.3,
+          ),
+        ),
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(
+                color: _kBlack,
+              ),
             )
           : bookings.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No bookings available.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                )
+              ? _buildEmptyState()
               : RefreshIndicator(
+                  color: _kBlack,
+                  backgroundColor: _kYellow,
                   onRefresh: loadBookings,
                   child: ListView.separated(
                     padding: const EdgeInsets.all(16),
@@ -171,7 +194,21 @@ class _CustomerBookingsScreenState
                           status[0].toUpperCase() +
                               status.substring(1).toLowerCase();
 
-                      return Card(
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius:
+                              BorderRadius.circular(22),
+                          border: Border.all(color: _kBorder),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black
+                                  .withValues(alpha: 0.04),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
                         child: Padding(
                           padding:
                               const EdgeInsets.all(18),
@@ -181,16 +218,18 @@ class _CustomerBookingsScreenState
                             children: [
                               Row(
                                 children: [
-                                  CircleAvatar(
-                                    radius: 25,
-                                    backgroundColor:
-                                        AppColors.primary
-                                            .withValues(alpha: 0.1),
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration:
+                                        const BoxDecoration(
+                                      color: _kYellow,
+                                      shape: BoxShape.circle,
+                                    ),
                                     child: const Icon(
                                       Icons
                                           .person_rounded,
-                                      color:
-                                          AppColors.primary,
+                                      color: _kBlack,
                                     ),
                                   ),
                                   const SizedBox(
@@ -198,41 +237,56 @@ class _CustomerBookingsScreenState
                                   Expanded(
                                     child: Text(
                                       providerName,
+                                      maxLines: 1,
+                                      overflow:
+                                          TextOverflow.ellipsis,
                                       style:
                                           const TextStyle(
                                         fontSize: 17,
                                         fontWeight:
-                                            FontWeight.w700,
-                                        color: AppColors
-                                            .textPrimary,
+                                            FontWeight.w800,
+                                        color: _kBlack,
+                                        letterSpacing: -0.3,
                                       ),
                                     ),
                                   ),
-                                  StatusBadge(
-                                    status:
-                                        displayStatus,
+                                  const SizedBox(width: 8),
+                                  _StatusChip(
+                                    status: status,
+                                    label: displayStatus,
                                   ),
                                 ],
                               ),
 
                               const Divider(
                                 height: 28,
+                                color: Color(0xFFEFEFEA),
                               ),
 
-                              Text(
-                                serviceName,
-                                style:
-                                    const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight:
-                                      FontWeight.w700,
-                                  color:
-                                      AppColors.primary,
+                              Container(
+                                padding:
+                                    const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _kBlack,
+                                  borderRadius:
+                                      BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  serviceName,
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight:
+                                        FontWeight.w700,
+                                    color: _kYellow,
+                                  ),
                                 ),
                               ),
 
                               const SizedBox(
-                                  height: 12),
+                                  height: 14),
 
                               _iconRow(
                                 Icons
@@ -241,7 +295,7 @@ class _CustomerBookingsScreenState
                               ),
 
                               const SizedBox(
-                                  height: 8),
+                                  height: 10),
 
                               _iconRow(
                                 Icons
@@ -250,7 +304,7 @@ class _CustomerBookingsScreenState
                               ),
 
                               const SizedBox(
-                                  height: 8),
+                                  height: 10),
 
                               _iconRow(
                                 Icons
@@ -265,9 +319,29 @@ class _CustomerBookingsScreenState
                                 SizedBox(
                                   width:
                                       double.infinity,
-                                  height: 46,
+                                  height: 48,
                                   child:
                                       OutlinedButton.icon(
+                                    style: OutlinedButton
+                                        .styleFrom(
+                                      foregroundColor:
+                                          _kBlack,
+                                      side: const BorderSide(
+                                        color: _kBlack,
+                                        width: 1.4,
+                                      ),
+                                      shape:
+                                          RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius
+                                                .circular(14),
+                                      ),
+                                      textStyle:
+                                          const TextStyle(
+                                        fontWeight:
+                                            FontWeight.w700,
+                                      ),
+                                    ),
                                     onPressed: () {
                                       ScaffoldMessenger
                                           .of(context)
@@ -294,8 +368,20 @@ class _CustomerBookingsScreenState
                                 reviewedBookings[requestId] == true
                                     ? SizedBox(
                                         width: double.infinity,
-                                        height: 46,
+                                        height: 48,
                                         child: OutlinedButton.icon(
+                                          style: OutlinedButton.styleFrom(
+                                            disabledForegroundColor:
+                                                _kTextSecondary,
+                                            side: const BorderSide(
+                                              color: _kBorder,
+                                              width: 1.4,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                          ),
                                           onPressed: null,
                                           icon: const Icon(
                                             Icons.check_circle_rounded,
@@ -311,12 +397,19 @@ class _CustomerBookingsScreenState
                                       )
                                     : SizedBox(
                                         width: double.infinity,
-                                        height: 46,
-                                        child: OutlinedButton.icon(
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: AppColors.warning,
-                                            side: const BorderSide(
-                                              color: AppColors.warning,
+                                        height: 48,
+                                        child: ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _kYellow,
+                                            foregroundColor: _kBlack,
+                                            elevation: 0,
+                                            shadowColor: Colors.transparent,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                            textStyle: const TextStyle(
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
                                           onPressed: () {
@@ -335,14 +428,14 @@ class _CustomerBookingsScreenState
                                           },
                                           icon: const Icon(
                                             Icons.star_rounded,
-                                            size: 18,
+                                            size: 19,
                                           ),
                                           label: const Text(
                                             'Rate Provider',
                                           ),
                                         ),
                                       ),
-                                
+
                             ],
                           ),
                         ),
@@ -353,30 +446,142 @@ class _CustomerBookingsScreenState
     );
   }
 
+  Widget _buildEmptyState() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _EmptyBookingsIcon(),
+          SizedBox(height: 16),
+          Text(
+            'No bookings available.',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _kTextSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _iconRow(
     IconData icon,
     String text,
   ) {
     return Row(
       crossAxisAlignment:
-          CrossAxisAlignment.start,
+          CrossAxisAlignment.center,
       children: [
-        Icon(
-          icon,
-          size: 17,
-          color: AppColors.textSecondary,
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F3EE),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: _kBlack,
+          ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             text,
             style: const TextStyle(
-              color: AppColors.textSecondary,
+              color: _kTextSecondary,
               fontSize: 14,
+              height: 1.3,
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+// ==================== Status Chip ====================
+
+class _StatusChip extends StatelessWidget {
+  final String status;
+  final String label;
+
+  const _StatusChip({
+    required this.status,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Color background;
+    Color foreground;
+
+    switch (status.toUpperCase()) {
+      case 'PENDING':
+        background = const Color(0xFFFFF1BF);
+        foreground = const Color(0xFF7A5A00);
+        break;
+      case 'ACCEPTED':
+        background = _kBlack;
+        foreground = _kYellow;
+        break;
+      case 'COMPLETED':
+        background = const Color(0xFFDFF5E6);
+        foreground = const Color(0xFF1B7A3C);
+        break;
+      case 'REJECTED':
+      case 'DECLINED':
+      case 'CANCELLED':
+      case 'CANCELED':
+        background = const Color(0xFFFDE3E3);
+        foreground = const Color(0xFFB3261E);
+        break;
+      default:
+        background = const Color(0xFFEDEDE8);
+        foreground = _kTextSecondary;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: foreground,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyBookingsIcon extends StatelessWidget {
+  const _EmptyBookingsIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 84,
+      height: 84,
+      decoration: BoxDecoration(
+        color: _kYellow.withValues(alpha: 0.18),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.calendar_month_rounded,
+        size: 38,
+        color: _kBlack,
+      ),
     );
   }
 }
