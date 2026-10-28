@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
-import '../../utils/app_colors.dart';
 import '../../utils/session.dart';
-import '../../widgets/info_tile.dart';
 import 'request_service_screen.dart';
 import 'reviews_screen.dart';
 import 'chat_screen.dart';
 
-
-
+// Yellow & black palette (local to this screen)
+const Color _kYellow = Color(0xFFFFC400);
+const Color _kBlack = Color(0xFF0D0D0D);
+const Color _kBackground = Color(0xFFF6F6F2);
+const Color _kTextSecondary = Color(0xFF6B6B6B);
+const Color _kBorder = Color(0xFFE4E4DE);
 
 //==================== Provider Profile Screen ====================
 
@@ -152,11 +155,135 @@ class _ProviderProfileScreenState
     }
   }
 
+  // ==================== UI HELPERS ====================
+
+  Widget _buildServiceCard(dynamic service) {
+    final serviceName =
+        service['name']?.toString() ??
+            'Service';
+
+    final category =
+        service['category']?.toString() ??
+            '';
+
+    final description =
+        service['description']
+                ?.toString() ??
+            '';
+
+    final price =
+        service['price']?.toString() ??
+            '0';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  serviceName,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                    color: _kBlack,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _kYellow,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Rs. $price',
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: _kBlack,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          if (category.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              category,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _kBlack,
+              ),
+            ),
+          ],
+
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: const TextStyle(
+                fontSize: 13.5,
+                height: 1.4,
+                color: _kTextSecondary,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _kBackground,
       appBar: AppBar(
-        title: const Text('Provider Profile'),
+        backgroundColor: _kBlack,
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+          ),
+        ),
+        title: const Text(
+          'Provider Profile',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.3,
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -164,14 +291,27 @@ class _ProviderProfileScreenState
           children: [
             // ==================== PROFILE ICON ====================
 
-            CircleAvatar(
-              radius: 55,
-              backgroundColor:
-                  AppColors.primary.withValues(alpha: 0.1),
-              child: const Icon(
-                Icons.person_rounded,
-                size: 58,
-                color: AppColors.primary,
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: _kYellow,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: _kYellow.withValues(alpha: 0.35),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const CircleAvatar(
+                radius: 55,
+                backgroundColor: Color(0xFFFFF3C4),
+                child: Icon(
+                  Icons.person_rounded,
+                  size: 58,
+                  color: _kBlack,
+                ),
               ),
             ),
 
@@ -181,14 +321,16 @@ class _ProviderProfileScreenState
 
             Text(
               widget.name,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
+                letterSpacing: -0.5,
+                color: _kBlack,
               ),
             ),
 
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
 
             // ==================== SERVICE CATEGORY ====================
 
@@ -198,17 +340,16 @@ class _ProviderProfileScreenState
                 vertical: 6,
               ),
               decoration: BoxDecoration(
-                color:
-                    AppColors.primary.withValues(alpha: 0.1),
+                color: _kBlack,
                 borderRadius:
                     BorderRadius.circular(20),
               ),
               child: Text(
                 widget.serviceName,
                 style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: _kYellow,
                 ),
               ),
             ),
@@ -223,52 +364,67 @@ class _ProviderProfileScreenState
                 width: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
+                  color: _kBlack,
                 ),
               )
             else
               Column(
                 children: [
-                  Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.star_rounded,
-                        color: AppColors.warning,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        averageRating > 0
-                            ? averageRating
-                                .toStringAsFixed(1)
-                            : 'No ratings',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color:
-                              AppColors.textPrimary,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.circular(20),
+                      border: Border.all(color: _kBorder),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.star_rounded,
+                          color: _kYellow,
+                          size: 24,
                         ),
-                      ),
-                      if (reviews.isNotEmpty) ...[
                         const SizedBox(width: 6),
                         Text(
-                          '(${reviews.length})',
+                          averageRating > 0
+                              ? averageRating
+                                  .toStringAsFixed(1)
+                              : 'No ratings',
                           style: const TextStyle(
-                            fontSize: 14,
-                            color:
-                                AppColors.textSecondary,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: _kBlack,
                           ),
                         ),
+                        if (reviews.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '(${reviews.length})',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: _kTextSecondary,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
 
                   // ==================== VIEW REVIEWS ====================
 
                   TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: _kBlack,
+                    ),
                     onPressed: () {
                       Navigator.push(
                         context,
@@ -288,7 +444,10 @@ class _ProviderProfileScreenState
                     label: const Text(
                       'View Reviews',
                       style: TextStyle(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                        decorationColor: _kYellow,
+                        decorationThickness: 2.5,
                       ),
                     ),
                   ),
@@ -299,7 +458,7 @@ class _ProviderProfileScreenState
 
             // ==================== LOCATION ====================
 
-            InfoTile(
+            _InfoTile(
               icon: Icons.location_on_rounded,
               title: 'Location',
               subtitle: widget.location,
@@ -307,20 +466,18 @@ class _ProviderProfileScreenState
 
             // ==================== EXPERIENCE ====================
 
-            InfoTile(
+            _InfoTile(
               icon: Icons.work_rounded,
               title: 'Experience',
               subtitle: widget.experience,
-              iconColor: AppColors.secondary,
             ),
 
             // ==================== DESCRIPTION ====================
 
-            InfoTile(
+            _InfoTile(
               icon: Icons.description_rounded,
               title: 'About',
               subtitle: widget.description,
-              iconColor: AppColors.primary,
             ),
 
             const SizedBox(height: 20),
@@ -329,22 +486,38 @@ class _ProviderProfileScreenState
 
             Align(
               alignment: Alignment.centerLeft,
-              child: const Text(
-                'Services Offered',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: _kYellow,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Services Offered',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                      color: _kBlack,
+                    ),
+                  ),
+                ],
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             if (isLoadingServices)
               const Padding(
                 padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(),
+                child: CircularProgressIndicator(
+                  color: _kBlack,
+                ),
               )
             else if (services.isEmpty)
               const Padding(
@@ -352,7 +525,7 @@ class _ProviderProfileScreenState
                 child: Text(
                   'No services available.',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: _kTextSecondary,
                   ),
                 ),
               )
@@ -360,96 +533,7 @@ class _ProviderProfileScreenState
               Column(
                 children:
                     services.map((service) {
-                  final serviceName =
-                      service['name']?.toString() ??
-                          'Service';
-
-                  final category =
-                      service['category']?.toString() ??
-                          '';
-
-                  final description =
-                      service['description']
-                              ?.toString() ??
-                          '';
-
-                  final price =
-                      service['price']?.toString() ??
-                          '0';
-
-                  return Card(
-                    margin:
-                        const EdgeInsets.only(
-                      bottom: 12,
-                    ),
-                    child: Padding(
-                      padding:
-                          const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            serviceName,
-                            style:
-                                const TextStyle(
-                              fontSize: 17,
-                              fontWeight:
-                                  FontWeight.w700,
-                              color:
-                                  AppColors
-                                      .textPrimary,
-                            ),
-                          ),
-
-                          const SizedBox(height: 5),
-
-                          if (category.isNotEmpty)
-                            Text(
-                              category,
-                              style:
-                                  const TextStyle(
-                                fontSize: 13,
-                                color:
-                                    AppColors
-                                        .secondary,
-                              ),
-                            ),
-
-                          if (description
-                              .isNotEmpty) ...[
-                            const SizedBox(
-                              height: 8,
-                            ),
-                            Text(
-                              description,
-                              style:
-                                  const TextStyle(
-                                fontSize: 13.5,
-                                color:
-                                    AppColors
-                                        .textSecondary,
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 10),
-
-                          Text(
-                            'Rs. $price',
-                            style:
-                                const TextStyle(
-                              fontSize: 16,
-                              fontWeight:
-                                  FontWeight.w700,
-                              color:
-                                  AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
+                  return _buildServiceCard(service);
                 }).toList(),
               ),
 
@@ -457,12 +541,12 @@ class _ProviderProfileScreenState
 
             // ==================== VERIFIED ====================
 
-            InfoTile(
+            const _InfoTile(
               icon: Icons.verified_rounded,
               title: 'Verified Provider',
               subtitle:
                   'Identity verification will be available later.',
-              iconColor: AppColors.success,
+              dark: true,
             ),
 
             const SizedBox(height: 12),
@@ -473,6 +557,16 @@ class _ProviderProfileScreenState
               width: double.infinity,
               height: 54,
               child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _kBlack,
+                  side: const BorderSide(
+                    color: _kBlack,
+                    width: 1.4,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -491,7 +585,7 @@ class _ProviderProfileScreenState
                   'Chat with Provider',
                   style: TextStyle(
                     fontSize: 17,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -506,6 +600,18 @@ class _ProviderProfileScreenState
               width: double.infinity,
               height: 54,
               child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kYellow,
+                  foregroundColor: _kBlack,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  textStyle: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -533,6 +639,89 @@ class _ProviderProfileScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ==================== Info Tile ====================
+
+class _InfoTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool dark;
+
+  const _InfoTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.dark = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: dark ? _kBlack : _kYellow,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              icon,
+              size: 23,
+              color: dark ? _kYellow : _kBlack,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: _kTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                      color: _kBlack,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

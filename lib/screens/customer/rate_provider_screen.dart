@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
-import '../../utils/app_colors.dart';
 import '../../utils/session.dart';
+
+// Yellow & black palette (local to this screen)
+const Color _kYellow = Color(0xFFFFC400);
+const Color _kBlack = Color(0xFF0D0D0D);
+const Color _kBackground = Color(0xFFF6F6F2);
+const Color _kTextSecondary = Color(0xFF6B6B6B);
+const Color _kBorder = Color(0xFFE4E4DE);
+const Color _kSuccess = Color(0xFF1B7A3C);
 
 //----------------RateProviderScreen----------------//
 class RateProviderScreen extends StatefulWidget {
@@ -97,7 +105,7 @@ class RateProviderScreen extends StatefulWidget {
             content: Text(
               'Review submitted successfully.',
             ),
-            backgroundColor: AppColors.success,
+            backgroundColor: _kSuccess,
           ),
         );
 
@@ -116,24 +124,61 @@ class RateProviderScreen extends StatefulWidget {
     @override
     Widget build(BuildContext context) {
       return Scaffold(
+        backgroundColor: _kBackground,
         appBar: AppBar(
-          title: const Text('Rate Provider'),
+          backgroundColor: _kBlack,
+          foregroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: false,
+          systemOverlayStyle: SystemUiOverlayStyle.light,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+          ),
+          title: const Text(
+            'Rate Provider',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: -0.3,
+            ),
+          ),
         ),
         body: SingleChildScrollView(
+          keyboardDismissBehavior:
+              ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment:
                 CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
-              const CircleAvatar(
-                radius: 42,
-                backgroundColor: Color(0x1A1F3A5F),
-                child: Icon(
-                  Icons.person_rounded,
-                  size: 42,
-                  color: AppColors.primary,
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: _kYellow,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _kYellow.withValues(alpha: 0.35),
+                      blurRadius: 22,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const CircleAvatar(
+                  radius: 42,
+                  backgroundColor: Color(0xFFFFF3C4),
+                  child: Icon(
+                    Icons.person_rounded,
+                    size: 44,
+                    color: _kBlack,
+                  ),
                 ),
               ),
 
@@ -145,7 +190,8 @@ class RateProviderScreen extends StatefulWidget {
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                  letterSpacing: -0.4,
+                  color: _kBlack,
                 ),
               ),
 
@@ -156,81 +202,172 @@ class RateProviderScreen extends StatefulWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
-                  color: AppColors.textSecondary,
+                  color: _kTextSecondary,
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
-              Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-                children: List.generate(
-                  5,
-                  (index) {
-                    final starNumber = index + 1;
+              // Rating card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 20,
+                  horizontal: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: _kBorder),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
+                      children: List.generate(
+                        5,
+                        (index) {
+                          final starNumber = index + 1;
 
-                    return IconButton(
-                      onPressed: () {
-                        setState(() {
-                          selectedRating =
-                              starNumber;
-                        });
-                      },
-                      icon: Icon(
-                        starNumber <=
-                                selectedRating
-                            ? Icons.star_rounded
-                            : Icons
-                                .star_border_rounded,
-                        size: 45,
-                        color: AppColors.warning,
+                          return IconButton(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 2,
+                            ),
+                            constraints: const BoxConstraints(),
+                            onPressed: () {
+                              setState(() {
+                                selectedRating =
+                                    starNumber;
+                              });
+                            },
+                            icon: Icon(
+                              starNumber <=
+                                      selectedRating
+                                  ? Icons.star_rounded
+                                  : Icons
+                                      .star_border_rounded,
+                              size: 46,
+                              color: starNumber <=
+                                      selectedRating
+                                  ? _kYellow
+                                  : const Color(0xFFCFCFC8),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selectedRating == 0
+                            ? const Color(0xFFF1F1EC)
+                            : _kBlack,
+                        borderRadius:
+                            BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        selectedRating == 0
+                            ? 'Select a rating'
+                            : '$selectedRating / 5',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: selectedRating == 0
+                              ? _kTextSecondary
+                              : _kYellow,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
-              const SizedBox(height: 8),
-
-              Text(
-                selectedRating == 0
-                    ? 'Select a rating'
-                    : '$selectedRating / 5',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-
-              const SizedBox(height: 28),
+              const SizedBox(height: 26),
 
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
-                  'Your Review',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: _kYellow,
+                        borderRadius:
+                            BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Your Review',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: _kBlack,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
 
               TextField(
                 controller: commentController,
                 maxLines: 5,
+                cursorColor: _kBlack,
                 textInputAction:
                     TextInputAction.newline,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: _kBlack,
+                ),
                 decoration: InputDecoration(
                   hintText:
                       'Write your experience...',
+                  hintStyle: const TextStyle(
+                    color: _kTextSecondary,
+                    fontSize: 14.5,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding:
+                      const EdgeInsets.all(16),
                   border: OutlineInputBorder(
                     borderRadius:
-                        BorderRadius.circular(12),
+                        BorderRadius.circular(16),
+                    borderSide: const BorderSide(
+                      color: _kBorder,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius:
+                        BorderRadius.circular(16),
+                    borderSide: const BorderSide(
+                      color: _kBorder,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius:
+                        BorderRadius.circular(16),
+                    borderSide: const BorderSide(
+                      color: _kYellow,
+                      width: 2,
+                    ),
                   ),
                   alignLabelWithHint: true,
                 ),
@@ -240,7 +377,7 @@ class RateProviderScreen extends StatefulWidget {
 
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 54,
                 child: ElevatedButton.icon(
                   onPressed:
                       isSubmitting
@@ -252,8 +389,8 @@ class RateProviderScreen extends StatefulWidget {
                           height: 20,
                           child:
                               CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                            strokeWidth: 2.4,
+                            color: _kBlack,
                           ),
                         )
                       : const Icon(
@@ -266,10 +403,21 @@ class RateProviderScreen extends StatefulWidget {
                   ),
                   style:
                       ElevatedButton.styleFrom(
-                    backgroundColor:
-                        AppColors.primary,
-                    foregroundColor:
-                        Colors.white,
+                    backgroundColor: _kYellow,
+                    foregroundColor: _kBlack,
+                    disabledBackgroundColor:
+                        _kYellow.withValues(alpha: 0.65),
+                    disabledForegroundColor: _kBlack,
+                    elevation: 0,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
