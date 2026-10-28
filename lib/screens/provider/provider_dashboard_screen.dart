@@ -1,10 +1,8 @@
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
-import '../../utils/app_colors.dart';
 import '../../utils/session.dart';
-import '../../widgets/section_header.dart';
 
 import '../customer/customer_home_screen.dart';
 import '../customer/reviews_screen.dart';
@@ -13,6 +11,14 @@ import 'provider_profile_edit_screen.dart';
 import 'my_services_screen.dart';
 import 'provider_requests_screen.dart';
 import 'provider_bookings_screen.dart';
+
+// Yellow & black palette (local to this screen)
+const Color _kYellow = Color(0xFFFFC400);
+const Color _kBlack = Color(0xFF0D0D0D);
+const Color _kBlackLight = Color(0xFF1E1E1E);
+const Color _kBackground = Color(0xFFF6F6F2);
+const Color _kTextSecondary = Color(0xFF6B6B6B);
+const Color _kBorder = Color(0xFFE4E4DE);
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({super.key});
@@ -93,7 +99,7 @@ class _ProviderDashboardScreenState
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
         child: Center(
-          child: CircularProgressIndicator(),
+          child: CircularProgressIndicator(color: _kBlack),
         ),
       );
     }
@@ -106,8 +112,8 @@ class _ProviderDashboardScreenState
 
     switch (approvalStatus) {
       case 'PENDING':
-        statusColor = Colors.orange.shade800;
-        backgroundColor = Colors.orange.shade50;
+        statusColor = const Color(0xFF7A5A00);
+        backgroundColor = const Color(0xFFFFF7D6);
         statusIcon = Icons.hourglass_top_rounded;
         title = 'Approval Pending';
         message =
@@ -115,8 +121,8 @@ class _ProviderDashboardScreenState
         break;
 
       case 'APPROVED':
-        statusColor = Colors.green.shade800;
-        backgroundColor = Colors.green.shade50;
+        statusColor = const Color(0xFF1B7A3C);
+        backgroundColor = const Color(0xFFE6F6EC);
         statusIcon = Icons.verified_rounded;
         title = 'Provider Approved';
         message =
@@ -124,8 +130,8 @@ class _ProviderDashboardScreenState
         break;
 
       case 'REJECTED':
-        statusColor = Colors.red.shade800;
-        backgroundColor = Colors.red.shade50;
+        statusColor = const Color(0xFFB3261E);
+        backgroundColor = const Color(0xFFFDEBEA);
         statusIcon = Icons.cancel_rounded;
         title = 'Application Rejected';
         message =
@@ -133,8 +139,8 @@ class _ProviderDashboardScreenState
         break;
 
       default:
-        statusColor = Colors.blueGrey.shade700;
-        backgroundColor = Colors.blueGrey.shade50;
+        statusColor = const Color(0xFF4B4B4B);
+        backgroundColor = const Color(0xFFEFEFEA);
         statusIcon = Icons.info_outline_rounded;
         title = 'Approval Status Unavailable';
         message =
@@ -146,18 +152,26 @@ class _ProviderDashboardScreenState
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: statusColor.withValues(alpha: 0.35),
+          color: statusColor.withValues(alpha: 0.30),
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            statusIcon,
-            color: statusColor,
-            size: 28,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              statusIcon,
+              color: statusColor,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -390,8 +404,29 @@ class _ProviderDashboardScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _kBackground,
       appBar: AppBar(
-        title: const Text('Provider Dashboard'),
+        backgroundColor: _kBlack,
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+          ),
+        ),
+        title: const Text(
+          'Provider Dashboard',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.3,
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: 'Notifications',
@@ -399,11 +434,15 @@ class _ProviderDashboardScreenState
             icon: Stack(
               clipBehavior: Clip.none,
               children: [
-                const Icon(Icons.notifications_outlined),
+                const Icon(
+                  Icons.notifications_outlined,
+                  color: Colors.white,
+                  size: 26,
+                ),
                 if (unreadNotificationCount > 0)
                   Positioned(
-                    right: -7,
-                    top: -7,
+                    right: -8,
+                    top: -8,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 5,
@@ -414,7 +453,7 @@ class _ProviderDashboardScreenState
                         minHeight: 18,
                       ),
                       decoration: const BoxDecoration(
-                        color: Colors.red,
+                        color: _kYellow,
                         shape: BoxShape.circle,
                       ),
                       child: Text(
@@ -423,9 +462,9 @@ class _ProviderDashboardScreenState
                             : unreadNotificationCount.toString(),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: _kBlack,
                           fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
@@ -441,20 +480,82 @@ class _ProviderDashboardScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Welcome, Service Provider!',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
+            // ==================== WELCOME BANNER ====================
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [_kBlackLight, _kBlack],
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Manage your services and customer requests.',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      right: -50,
+                      top: -60,
+                      child: Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _kYellow.withValues(alpha: 0.12),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 54,
+                          height: 54,
+                          decoration: const BoxDecoration(
+                            color: _kYellow,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.handyman_rounded,
+                            color: _kBlack,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Welcome, Service Provider!',
+                                style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: -0.4,
+                                  height: 1.2,
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Text(
+                                'Manage your services and customer requests.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.4,
+                                  color: Color(0xBFFFFFFF),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -466,7 +567,6 @@ class _ProviderDashboardScreenState
             _dashboardTile(
               context,
               icon: Icons.person_rounded,
-              color: AppColors.primary,
               title: 'My Profile',
               subtitle: 'View and edit your provider profile',
               onTap: () {
@@ -484,7 +584,6 @@ class _ProviderDashboardScreenState
             _dashboardTile(
               context,
               icon: Icons.build_rounded,
-              color: AppColors.secondary,
               title: 'My Services',
               subtitle: 'Manage the services you provide',
               onTap: () {
@@ -501,7 +600,6 @@ class _ProviderDashboardScreenState
             _dashboardTile(
               context,
               icon: Icons.assignment_rounded,
-              color: AppColors.warning,
               title: 'Service Requests',
               subtitle: approvalStatus == 'APPROVED'
                   ? 'View and manage customer requests'
@@ -520,7 +618,6 @@ class _ProviderDashboardScreenState
             _dashboardTile(
               context,
               icon: Icons.calendar_month_rounded,
-              color: AppColors.success,
               title: 'My Bookings',
               subtitle: 'View accepted and completed bookings',
               onTap: () {
@@ -537,14 +634,36 @@ class _ProviderDashboardScreenState
             _dashboardTile(
               context,
               icon: Icons.person_search_rounded,
-              color: AppColors.primary,
               title: 'Switch to Customer',
               subtitle: 'Find and book services from other providers',
+              dark: true,
               onTap: () => switchToCustomer(context),
             ),
             const SizedBox(height: 28),
 
-            const SectionHeader(title: 'Overview'),
+            // ==================== OVERVIEW ====================
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: _kYellow,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Overview',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                    color: _kBlack,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
 
             Row(
@@ -554,7 +673,6 @@ class _ProviderDashboardScreenState
                     icon: Icons.pending_actions_rounded,
                     title: 'Requests',
                     value: isLoadingStats ? '...' : pendingRequests.toString(),
-                    color: AppColors.warning,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -565,7 +683,6 @@ class _ProviderDashboardScreenState
                     value: isLoadingStats
                         ? '...'
                         : completedRequests.toString(),
-                    color: AppColors.success,
                   ),
                 ),
               ],
@@ -581,7 +698,7 @@ class _ProviderDashboardScreenState
                     value: isLoadingRating
                         ? '...'
                         : averageRating.toStringAsFixed(1),
-                    color: AppColors.secondary,
+                    dark: true,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -592,7 +709,6 @@ class _ProviderDashboardScreenState
                     value: isLoadingStats
                         ? '...'
                         : totalCustomers.toString(),
-                    color: AppColors.primary,
                   ),
                 ),
               ],
@@ -601,6 +717,9 @@ class _ProviderDashboardScreenState
 
             Center(
               child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: _kBlack,
+                ),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -619,7 +738,10 @@ class _ProviderDashboardScreenState
                       ? 'View Reviews ($reviewCount)'
                       : 'View Reviews',
                   style: const TextStyle(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.underline,
+                    decorationColor: _kYellow,
+                    decorationThickness: 2.5,
                   ),
                 ),
               ),
@@ -633,58 +755,91 @@ class _ProviderDashboardScreenState
   Widget _dashboardTile(
     BuildContext context, {
     required IconData icon,
-    required Color color,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    bool dark = false,
   }) {
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+    return Container(
+      decoration: BoxDecoration(
+        color: dark ? _kBlack : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: dark ? _kBlack : _kBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          splashColor: _kYellow.withValues(alpha: 0.18),
+          highlightColor: _kYellow.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: _kYellow,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(icon, color: _kBlack, size: 26),
                 ),
-                child: Icon(icon, color: color, size: 26),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: AppColors.textPrimary,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          letterSpacing: -0.3,
+                          color: dark ? Colors.white : _kBlack,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.textSecondary,
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.35,
+                          color: dark
+                              ? Colors.white.withValues(alpha: 0.7)
+                              : _kTextSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: AppColors.textSecondary,
-              ),
-            ],
+                const SizedBox(width: 8),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: dark
+                        ? _kYellow
+                        : const Color(0xFFF3F3EE),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 14,
+                    color: _kBlack,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -695,41 +850,55 @@ class _ProviderDashboardScreenState
     required IconData icon,
     required String title,
     required String value,
-    required Color color,
+    bool dark = false,
   }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, size: 22, color: color),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: dark ? _kBlack : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: dark ? _kBlack : _kBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _kYellow,
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
+            child: Icon(icon, size: 22, color: _kBlack),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              color: dark ? _kYellow : _kBlack,
             ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: AppColors.textSecondary,
-              ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: dark
+                  ? Colors.white.withValues(alpha: 0.7)
+                  : _kTextSecondary,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
