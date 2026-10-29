@@ -303,6 +303,192 @@ class ApiService {
     }
   }
 
+  // ==================== GET PROVIDER AVAILABILITY ====================
+
+  static Future<List<dynamic>> getProviderAvailability({
+    required String email,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/provider-availability',
+      ).replace(
+        queryParameters: {
+          'email': email,
+        },
+      );
+
+      final response = await http.get(uri);
+
+      debugPrint(
+        'Provider Availability Status: ${response.statusCode}',
+      );
+      debugPrint(
+        'Provider Availability Response: ${response.body}',
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+
+      return [];
+    } catch (e) {
+      debugPrint('Get Provider Availability Error: $e');
+      return [];
+    }
+  }
+
+  
+
+  // ============================================================
+  // ADD PROVIDER AVAILABILITY
+  // ============================================================
+
+  static Future<bool> addProviderAvailability({
+    required String email,
+    required String dayOfWeek,
+    required String startTime,
+    required String endTime,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/provider-availability',
+      ).replace(
+        queryParameters: {
+          'email': email,
+          'dayOfWeek': dayOfWeek,
+          'startTime': startTime,
+          'endTime': endTime,
+        },
+      );
+
+      final response = await http.post(uri);
+
+      debugPrint('Add Availability Status: ${response.statusCode}');
+      debugPrint('Add Availability Response: ${response.body}');
+
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      debugPrint('Add Availability Error: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // UPDATE PROVIDER AVAILABILITY ON/OFF
+  // ============================================================
+
+  static Future<bool> updateProviderAvailability({
+    required int id,
+    required String email,
+    required bool available,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/provider-availability/$id/availability',
+      ).replace(
+        queryParameters: {
+          'email': email,
+          'available': available.toString(),
+        },
+      );
+
+      final response = await http.put(uri);
+
+      debugPrint('Update Availability Status: ${response.statusCode}');
+      debugPrint('Update Availability Response: ${response.body}');
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Update Availability Error: $e');
+      return false;
+    }
+  }
+
+
+  
+  static Future<bool> addDateProviderAvailability({
+    required String email,
+    required String date,
+    required String startTime,
+    required String endTime,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/provider-availability/date',
+      ).replace(queryParameters: {
+        'email': email,
+        'date': date,
+        'startTime': startTime,
+        'endTime': endTime,
+      });
+
+      final response = await http.post(uri);
+      debugPrint('Add Date Availability: ${response.statusCode}');
+      debugPrint(response.body);
+
+      return response.statusCode == 200 ||
+          response.statusCode == 201;
+    } catch (e) {
+      debugPrint('Add Date Availability Error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> editProviderAvailability({
+    required int id,
+    required String email,
+    required String startTime,
+    required String endTime,
+    String? date,
+    String? dayOfWeek,
+  }) async {
+    try {
+      final params = <String, String>{
+        'email': email,
+        'startTime': startTime,
+        'endTime': endTime,
+      };
+
+      if (date != null) params['date'] = date;
+      if (dayOfWeek != null) params['dayOfWeek'] = dayOfWeek;
+
+      final uri = Uri.parse(
+        '$baseUrl/api/provider-availability/$id',
+      ).replace(queryParameters: params);
+
+      final response = await http.put(uri);
+      debugPrint('Edit Availability: ${response.statusCode}');
+      debugPrint(response.body);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Edit Availability Error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> deleteProviderAvailability({
+    required int id,
+    required String email,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/provider-availability/$id',
+      ).replace(queryParameters: {'email': email});
+
+      final response = await http.delete(uri);
+      debugPrint('Delete Availability: ${response.statusCode}');
+      debugPrint(response.body);
+
+      return response.statusCode == 200 ||
+          response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Delete Availability Error: $e');
+      return false;
+    }
+  }
+
+
   // ============================================================
   // UPDATE SERVICE
   // ============================================================
