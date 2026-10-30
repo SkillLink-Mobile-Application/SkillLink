@@ -979,30 +979,159 @@ class ApiService {
     required int requestId,
     required String email,
     required String status,
+    String? reason,
+  }) async {
+    try {
+      final queryParameters = {
+        'email': email,
+        'status': status,
+      };
+
+      if (status == 'REJECTED') {
+        if (reason == null || reason.trim().isEmpty) {
+          debugPrint('Rejection reason is required.');
+          return false;
+        }
+
+        queryParameters['reason'] = reason.trim();
+      }
+
+      final uri = Uri.parse(
+        '$baseUrl/api/service-requests/update-status/$requestId',
+      ).replace(queryParameters: queryParameters);
+
+      final response = await http.put(uri);
+
+      debugPrint('Update Status Code: ${response.statusCode}');
+      debugPrint('Update Status Response: ${response.body}');
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Update Status Error: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // PROVIDER PROPOSES / RESCHEDULES DATE AND TIME
+  // ============================================================
+
+  static Future<bool> proposeServiceRequestTime({
+    required int requestId,
+    required String email,
+    required String proposedDate,
+    required String proposedTime,
   }) async {
     try {
       final uri = Uri.parse(
-        '$baseUrl/api/service-requests/update-status/$requestId',
+        '$baseUrl/api/service-requests/propose-time/$requestId',
       ).replace(
         queryParameters: {
           'email': email,
-          'status': status,
+          'proposedDate': proposedDate,
+          'proposedTime': proposedTime,
         },
       );
 
       final response = await http.put(uri);
 
-      debugPrint(
-        'Update Request Status Code: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'Update Request Response: ${response.body}',
-      );
+      debugPrint('Propose Time Code: ${response.statusCode}');
+      debugPrint('Propose Time Response: ${response.body}');
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint('Update Request Status Error: $e');
+      debugPrint('Propose Time Error: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // CUSTOMER CONFIRMS PROPOSED TIME
+  // ============================================================
+
+  static Future<bool> confirmServiceRequestTime({
+    required int requestId,
+    required String email,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/service-requests/confirm-time/$requestId',
+      ).replace(
+        queryParameters: {
+          'email': email,
+        },
+      );
+
+      final response = await http.put(uri);
+
+      debugPrint('Confirm Time Code: ${response.statusCode}');
+      debugPrint('Confirm Time Response: ${response.body}');
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Confirm Time Error: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // CUSTOMER DECLINES PROPOSED TIME
+  // ============================================================
+
+  static Future<bool> declineServiceRequestTime({
+    required int requestId,
+    required String email,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/service-requests/decline-time/$requestId',
+      ).replace(
+        queryParameters: {
+          'email': email,
+        },
+      );
+
+      final response = await http.put(uri);
+
+      debugPrint('Decline Time Code: ${response.statusCode}');
+      debugPrint('Decline Time Response: ${response.body}');
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Decline Time Error: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // CUSTOMER PROPOSES A NEW DATE AND TIME
+  // ============================================================
+
+  static Future<bool> customerProposeServiceRequestTime({
+    required int requestId,
+    required String email,
+    required String proposedDate,
+    required String proposedTime,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/service-requests/customer-propose-time/$requestId',
+      ).replace(
+        queryParameters: {
+          'email': email,
+          'proposedDate': proposedDate,
+          'proposedTime': proposedTime,
+        },
+      );
+
+      final response = await http.put(uri);
+
+      debugPrint('Customer Propose Time Code: ${response.statusCode}');
+      debugPrint('Customer Propose Time Response: ${response.body}');
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Customer Propose Time Error: $e');
       return false;
     }
   }
@@ -1714,4 +1843,73 @@ class ApiService {
       return false;
     }
   }
+
+    // ============================================================
+  // PROVIDER ACCEPTS CUSTOMER-PROPOSED TIME
+  // ============================================================
+
+  static Future<bool> acceptCustomerProposedTime({
+    required int requestId,
+    required String email,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/service-requests/accept-customer-time/$requestId',
+      ).replace(
+        queryParameters: {
+          'email': email,
+        },
+      );
+
+      final response = await http.put(uri);
+
+      debugPrint(
+        'Accept Customer Time Status: ${response.statusCode}',
+      );
+
+      debugPrint(
+        'Accept Customer Time Response: ${response.body}',
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Accept Customer Time Error: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // PROVIDER DECLINES CUSTOMER-PROPOSED TIME
+  // ============================================================
+
+  static Future<bool> declineCustomerProposedTime({
+    required int requestId,
+    required String email,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/service-requests/decline-customer-time/$requestId',
+      ).replace(
+        queryParameters: {
+          'email': email,
+        },
+      );
+
+      final response = await http.put(uri);
+
+      debugPrint(
+        'Decline Customer Time Status: ${response.statusCode}',
+      );
+
+      debugPrint(
+        'Decline Customer Time Response: ${response.body}',
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Decline Customer Time Error: $e');
+      return false;
+    }
+  }
+
 }
