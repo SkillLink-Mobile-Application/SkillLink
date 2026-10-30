@@ -1,16 +1,83 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
 import '../../utils/session.dart';
+import 'chat_screen.dart';
 import 'rate_provider_screen.dart';
 
+// ============================================================
+// DESIGN TOKENS
+// ============================================================
+
 const Color _kYellow = Color(0xFFFFC400);
+const Color _kYellowSoft = Color(0xFFFFF6D8);
 const Color _kBlack = Color(0xFF0D0D0D);
 const Color _kBackground = Color(0xFFF6F6F2);
+const Color _kSurfaceMuted = Color(0xFFF3F3EE);
 const Color _kTextSecondary = Color(0xFF6B6B6B);
 const Color _kBorder = Color(0xFFE4E4DE);
+const Color _kDanger = Color(0xFFD92D20);
+const Color _kSuccess = Color(0xFF1B7A3C);
+
+const List<String> _kMonths = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+const List<String> _kWeekdays = [
+  'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+];
+
+// Statuses where the customer has to respond.
+const Set<String> _kNeedsResponse = {'TIME_PROPOSED', 'RESCHEDULE_PROPOSED'};
+
+enum _BookingFilter { all, needsResponse, approved, waiting, rejected }
+
+class _StatusStyle {
+  final Color background;
+  final Color foreground;
+  final IconData icon;
+
+  const _StatusStyle(this.background, this.foreground, this.icon);
+}
+
+_StatusStyle _styleFor(String status) {
+  switch (status.toUpperCase()) {
+    case 'PENDING':
+      return const _StatusStyle(
+        Color(0xFFFFF1BF), Color(0xFF7A5A00), Icons.hourglass_top_rounded);
+    case 'ACCEPTED':
+    case 'CONFIRMED':
+      return const _StatusStyle(_kBlack, _kYellow, Icons.check_rounded);
+    case 'TIME_PROPOSED':
+    case 'RESCHEDULE_PROPOSED':
+      return const _StatusStyle(
+        _kYellowSoft, Color(0xFF7A5A00), Icons.event_available_rounded);
+    case 'CUSTOMER_TIME_PROPOSED':
+    case 'NEGOTIATING':
+      return const _StatusStyle(
+        _kYellowSoft, Color(0xFF7A5A00), Icons.schedule_send_rounded);
+    case 'IN_PROGRESS':
+      return const _StatusStyle(
+        Color(0xFFE3EEFF), Color(0xFF2457A6), Icons.handyman_rounded);
+    case 'COMPLETED':
+      return const _StatusStyle(
+        Color(0xFFDFF5E6), _kSuccess, Icons.verified_rounded);
+    case 'REJECTED':
+    case 'DECLINED':
+    case 'CANCELLED':
+    case 'CANCELED':
+      return const _StatusStyle(
+        Color(0xFFFDE3E3), Color(0xFFB3261E), Icons.block_rounded);
+    default:
+      return const _StatusStyle(
+        Color(0xFFEDEDE8), _kTextSecondary, Icons.info_outline_rounded);
+  }
+}
+
+// ============================================================
+// SCREEN
+// ============================================================
 
 class CustomerBookingsScreen extends StatefulWidget {
   const CustomerBookingsScreen({super.key});
@@ -25,16 +92,12 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> {
   Map<int, bool> reviewedBookings = {};
 
   bool isLoading = true;
-  bool isProcessing = false;
+  bool hasError = false;
 
-  String selectedFilter = 'All';
+  _BookingFilter selectedFilter = _BookingFilter.all;
+  bool showHistory = false;
 
-  final List<String> filters = [
-    'All',
-    'Approved',
-    'Rejected',
-    'Waiting / New Time',
-  ];
+  final Set<int> processingRequests = {};
 
   @override
   void initState() {
@@ -42,76 +105,214 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> {
     loadBookings();
   }
 
-  Future<void> loadBookings() async {
-    if (mounted) {
-      setState(() => isLoading = true);
-    }
+  // ----------------------------------------------------------
+  // DATA
+  // ----------------------------------------------------------
 
+  Future<void> loadBookings() async {
     final email = Session.email;
 
     if (email.isEmpty) {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
       return;
     }
 
     try {
       final result = await ApiService.getCustomerRequests(email: email);
 
-      final Map<int, bool> reviewStatus = {};
-
+      // Check review status for all completed bookings in parallel.
+      final completedIds = <int>[];
       for (final booking in result) {
-        final status = booking['status']?.toString() ?? '';
-        final requestId = int.tryParse(booking['id']?.toString() ?? '');
-
-        if (status == 'COMPLETED' && requestId != null) {
-          reviewStatus[requestId] =
-              await ApiService.hasReview(requestId);
+        final id = int.tryParse(booking['id']?.toString() ?? '');
+        if (booking['status']?.toString() == 'COMPLETED' && id != null) {
+          completedIds.add(id);
         }
       }
 
+      final reviewStatus = <int, bool>{};
+      await Future.wait(
+        completedIds.map((id) async {
+          try {
+            reviewStatus[id] = await ApiService.hasReview(id);
+          } catch (_) {
+            reviewStatus[id] = false;
+          }
+        }),
+      );
+
       if (!mounted) return;
-
-      // Newest bookings first.
-      result.sort((a, b) {
-        final dateA = DateTime.tryParse(
-          a['createdAt']?.toString() ?? '',
-        );
-        final dateB = DateTime.tryParse(
-          b['createdAt']?.toString() ?? '',
-        );
-
-        if (dateA == null || dateB == null) return 0;
-        return dateB.compareTo(dateA);
-      });
 
       setState(() {
         bookings = result;
         reviewedBookings = reviewStatus;
         isLoading = false;
+        hasError = false;
       });
     } catch (e) {
       if (!mounted) return;
 
-      setState(() => isLoading = false);
+      setState(() {
+        isLoading = false;
+        hasError = true;
+      });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load bookings.')),
-      );
+      if (bookings.isNotEmpty) {
+        _showMessage('Could not refresh. Showing your last loaded bookings.');
+      }
     }
   }
+
+  void _showMessage(String message, {bool success = false}) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          backgroundColor: success ? _kSuccess : _kBlack,
+          content: Row(
+            children: [
+              Icon(
+                success
+                    ? Icons.check_circle_rounded
+                    : Icons.info_outline_rounded,
+                color: success ? Colors.white : _kYellow,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(message)),
+            ],
+          ),
+        ),
+      );
+  }
+
+  // ----------------------------------------------------------
+  // ACTIONS
+  // ----------------------------------------------------------
+
+  Future<void> _runAction(
+    int requestId,
+    Future<void> Function() action,
+  ) async {
+    if (processingRequests.contains(requestId)) return;
+
+    setState(() => processingRequests.add(requestId));
+
+    try {
+      await action();
+    } catch (e) {
+      _showMessage('Something went wrong. Check your connection and retry.');
+    } finally {
+      if (mounted) {
+        setState(() => processingRequests.remove(requestId));
+      }
+    }
+  }
+
+  Future<void> approveProposedTime(int requestId) async {
+    await _runAction(requestId, () async {
+      final success = await ApiService.confirmServiceRequestTime(
+        requestId: requestId,
+        email: Session.email,
+      );
+
+      if (success) {
+        _showMessage('Appointment time confirmed.', success: true);
+        await loadBookings();
+      } else {
+        _showMessage('Could not confirm this time. Please try again.');
+      }
+    });
+  }
+
+  Future<void> rejectProposedTime(int requestId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Ask for a different time?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'The provider will be asked to suggest another time. '
+          'Your booking stays open and is not cancelled.',
+          style: TextStyle(color: _kTextSecondary, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Keep this time',
+              style: TextStyle(color: _kTextSecondary),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kBlack,
+              foregroundColor: _kYellow,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Ask for new time'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await _runAction(requestId, () async {
+      final success = await ApiService.declineServiceRequestTime(
+        requestId: requestId,
+        email: Session.email,
+      );
+
+      if (success) {
+        _showMessage(
+          'Request sent. The provider will suggest a new time.',
+          success: true,
+        );
+        await loadBookings();
+      } else {
+        _showMessage('Could not send your request. Please try again.');
+      }
+    });
+  }
+
+  void _openChat(String providerEmail, String providerName) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          otherUserEmail: providerEmail,
+          otherUserName: providerName,
+        ),
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------
+  // FORMATTING
+  // ----------------------------------------------------------
 
   String formatDate(String date) {
     if (date.isEmpty) return 'Not set';
 
-    final parts = date.split('-');
+    final parsed = DateTime.tryParse(date);
+    if (parsed == null) return date;
 
-    if (parts.length == 3) {
-      return '${parts[2]}/${parts[1]}/${parts[0]}';
-    }
-
-    return date;
+    return '${_kWeekdays[parsed.weekday - 1]}, '
+        '${parsed.day} ${_kMonths[parsed.month - 1]} ${parsed.year}';
   }
 
   String formatTime(String time) {
@@ -120,10 +321,9 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> {
     try {
       final parts = time.split(':');
       int hour = int.parse(parts[0]);
-      final minute = parts[1];
+      final minute = parts[1].padLeft(2, '0');
 
       final period = hour >= 12 ? 'PM' : 'AM';
-
       if (hour == 0) {
         hour = 12;
       } else if (hour > 12) {
@@ -136,157 +336,114 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> {
     }
   }
 
-  bool _isWaitingForTime(String status) {
-    return status == 'TIME_PROPOSED' ||
-        status == 'RESCHEDULE_PROPOSED' ||
-        status == 'NEGOTIATING' ||
-        status == 'CUSTOMER_TIME_PROPOSED';
-  }
-
-  List<dynamic> get activeBookings {
-    return bookings.where((booking) {
-      final status = booking['status']?.toString() ?? '';
-
-      // Completed requests are displayed only in Booking History.
-      if (status == 'COMPLETED') return false;
-
-      switch (selectedFilter) {
-        case 'Approved':
-          return status == 'ACCEPTED' || status == 'CONFIRMED';
-
-        case 'Rejected':
-          return status == 'REJECTED';
-
-        case 'Waiting / New Time':
-          return _isWaitingForTime(status);
-
-        default:
-          return true;
-      }
-    }).toList();
-  }
-
-  List<dynamic> get completedBookings {
-    return bookings.where(
-      (booking) => booking['status']?.toString() == 'COMPLETED',
-    ).toList();
-  }
-
-  Future<void> approveProposedTime(int requestId) async {
-    await _runAction(() async {
-      final success = await ApiService.confirmServiceRequestTime(
-        requestId: requestId,
-        email: Session.email,
-      );
-
-      if (success) {
-        _showMessage('Appointment time confirmed.');
-        await loadBookings();
-      } else {
-        _showMessage('Could not confirm the proposed time.');
-      }
-    });
-  }
-
-  Future<void> rejectProposedTime(int requestId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reject & Get New Time?'),
-        content: const Text(
-          'Do you want to reject this proposed time and request '
-          'a new appointment time from the provider? '
-          'Your service request will not be cancelled.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kBlack,
-              foregroundColor: _kYellow,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Reject Time'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    await _runAction(() async {
-      final success = await ApiService.declineServiceRequestTime(
-        requestId: requestId,
-        email: Session.email,
-      );
-
-      if (success) {
-        _showMessage(
-          'Time rejected. Waiting for a new time from the provider.',
-        );
-        await loadBookings();
-      } else {
-        _showMessage('Could not reject the proposed time.');
-      }
-    });
-  }
-
-  Future<void> _runAction(Future<void> Function() action) async {
-    if (isProcessing) return;
-
-    setState(() => isProcessing = true);
-
-    try {
-      await action();
-    } catch (e) {
-      _showMessage('Something went wrong. Please try again.');
-    } finally {
-      if (mounted) {
-        setState(() => isProcessing = false);
-      }
-    }
-  }
-
-  void _showMessage(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
   String displayStatus(String status) {
     switch (status) {
       case 'TIME_PROPOSED':
-        return 'Time Proposed';
+        return 'New time offered';
       case 'RESCHEDULE_PROPOSED':
-        return 'New Time Proposed';
+        return 'New time offered';
       case 'NEGOTIATING':
-        return 'Waiting for New Time';
-      case 'CONFIRMED':
-        return 'Confirmed';
-      case 'ACCEPTED':
-        return 'Accepted';
+        return 'Waiting for new time';
       case 'CUSTOMER_TIME_PROPOSED':
-        return 'Proposal Sent';
+        return 'Your time sent';
+      case 'IN_PROGRESS':
+        return 'In progress';
       default:
         if (status.isEmpty) return 'Pending';
-        return status
-            .split('_')
-            .map((word) => word.isEmpty
-                ? word
-                : '${word[0]}${word.substring(1).toLowerCase()}')
-            .join(' ');
+        final lower = status.replaceAll('_', ' ').toLowerCase();
+        return '${lower[0].toUpperCase()}${lower.substring(1)}';
     }
   }
 
+  String filterLabel(_BookingFilter filter) {
+    switch (filter) {
+      case _BookingFilter.all:
+        return 'All';
+      case _BookingFilter.needsResponse:
+        return 'Needs response';
+      case _BookingFilter.approved:
+        return 'Approved';
+      case _BookingFilter.waiting:
+        return 'Waiting for provider';
+      case _BookingFilter.rejected:
+        return 'Rejected';
+    }
+  }
+
+  // ----------------------------------------------------------
+  // FILTERING
+  // ----------------------------------------------------------
+
+  String _statusOf(dynamic b) => b['status']?.toString() ?? 'PENDING';
+
+  bool _matches(String status, _BookingFilter filter) {
+    if (status == 'COMPLETED') return false;
+
+    switch (filter) {
+      case _BookingFilter.all:
+        return true;
+      case _BookingFilter.needsResponse:
+        return _kNeedsResponse.contains(status);
+      case _BookingFilter.approved:
+        return status == 'ACCEPTED' ||
+            status == 'CONFIRMED' ||
+            status == 'IN_PROGRESS';
+      case _BookingFilter.waiting:
+        return status == 'PENDING' ||
+            status == 'NEGOTIATING' ||
+            status == 'CUSTOMER_TIME_PROPOSED';
+      case _BookingFilter.rejected:
+        return status == 'REJECTED';
+    }
+  }
+
+  int countFor(_BookingFilter filter) =>
+      bookings.where((b) => _matches(_statusOf(b), filter)).length;
+
+  int get historyCount =>
+      bookings.where((b) => _statusOf(b) == 'COMPLETED').length;
+
+  int get activeCount =>
+      bookings.where((b) => _statusOf(b) != 'COMPLETED').length;
+
+  int _compareNewestFirst(dynamic a, dynamic b) {
+    final dateA = DateTime.tryParse(a['createdAt']?.toString() ?? '');
+    final dateB = DateTime.tryParse(b['createdAt']?.toString() ?? '');
+
+    if (dateA != null && dateB != null) return dateB.compareTo(dateA);
+
+    final idA = int.tryParse(a['id']?.toString() ?? '') ?? 0;
+    final idB = int.tryParse(b['id']?.toString() ?? '') ?? 0;
+    return idB.compareTo(idA);
+  }
+
+  List<dynamic> get visibleBookings {
+    final result = bookings.where((b) {
+      final status = _statusOf(b);
+      return showHistory
+          ? status == 'COMPLETED'
+          : _matches(status, selectedFilter);
+    }).toList();
+
+    result.sort((a, b) {
+      if (!showHistory) {
+        final aUrgent = _kNeedsResponse.contains(_statusOf(a));
+        final bUrgent = _kNeedsResponse.contains(_statusOf(b));
+        if (aUrgent != bUrgent) return aUrgent ? -1 : 1;
+      }
+      return _compareNewestFirst(a, b);
+    });
+
+    return result;
+  }
+
+  // ----------------------------------------------------------
+  // BUILD
+  // ----------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
-    final filteredBookings = activeBookings;
-    final history = completedBookings;
+    final list = visibleBookings;
 
     return Scaffold(
       backgroundColor: _kBackground,
@@ -304,466 +461,547 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> {
           ),
         ),
         title: const Text(
-          'My Bookings',
+          'My bookings',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w800,
-            color: Colors.white,
+            letterSpacing: -0.3,
           ),
         ),
       ),
       body: isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: _kBlack),
-            )
+          ? _buildSkeleton()
           : RefreshIndicator(
               color: _kBlack,
               backgroundColor: _kYellow,
               onRefresh: loadBookings,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
                 children: [
-                  _buildFilterSection(),
-                  const SizedBox(height: 18),
-
-                  if (filteredBookings.isEmpty)
-                    _buildEmptyState(
-                      selectedFilter == 'All'
-                          ? 'No active bookings available.'
-                          : 'No $selectedFilter bookings found.',
-                    )
+                  _buildTabSwitcher(),
+                  const SizedBox(height: 14),
+                  if (!showHistory) ...[
+                    _buildActionBanner(),
+                    _buildFilterBar(),
+                    const SizedBox(height: 16),
+                  ],
+                  if (hasError && bookings.isEmpty)
+                    _buildErrorState()
+                  else if (list.isEmpty)
+                    _buildEmptyState()
                   else
-                    ...filteredBookings.map(
+                    ...list.map(
                       (booking) => Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: _buildBookingCard(
-                          booking,
-                          isHistory: false,
-                        ),
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildBookingCard(booking),
                       ),
                     ),
-
-                  const SizedBox(height: 18),
-                  _buildHistorySection(history),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildFilterSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Your Requests',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: _kBlack,
+  // ----------------------------------------------------------
+  // TABS, BANNER, FILTERS
+  // ----------------------------------------------------------
+
+  Widget _buildTabSwitcher() {
+    Widget tab(String label, bool selected, int count, VoidCallback onTap) {
+      return Expanded(
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: '$label, $count',
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? _kBlack : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: selected ? Colors.white : _kTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected ? _kYellow : _kSurfaceMuted,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: _kBlack,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Row(
+        children: [
+          tab('Active', !showHistory, activeCount, () {
+            setState(() => showHistory = false);
+          }),
+          tab('History', showHistory, historyCount, () {
+            setState(() => showHistory = true);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionBanner() {
+    final count = countFor(_BookingFilter.needsResponse);
+
+    if (count == 0 || selectedFilter == _BookingFilter.needsResponse) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () =>
+            setState(() => selectedFilter = _BookingFilter.needsResponse),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: _kYellowSoft,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _kYellow),
+          ),
           child: Row(
-            children: filters.map((filter) {
-              final selected = selectedFilter == filter;
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(filter),
-                  selected: selected,
-                  showCheckmark: false,
-                  selectedColor: _kYellow,
-                  backgroundColor: Colors.white,
-                  side: BorderSide(
-                    color: selected ? _kYellow : _kBorder,
-                  ),
-                  labelStyle: TextStyle(
+            children: [
+              const Icon(Icons.event_available_rounded, color: _kBlack),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  count == 1
+                      ? '1 provider offered a new time'
+                      : '$count providers offered a new time',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
                     color: _kBlack,
-                    fontWeight:
-                        selected ? FontWeight.w800 : FontWeight.w600,
                   ),
-                  onSelected: (_) {
-                    setState(() => selectedFilter = filter);
-                  },
                 ),
-              );
-            }).toList(),
+              ),
+              const Text(
+                'Review',
+                style: TextStyle(fontWeight: FontWeight.w800, color: _kBlack),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: _kBlack),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildHistorySection(List<dynamic> history) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Divider(color: _kBorder, height: 28),
-        Row(
-          children: [
-            const Icon(Icons.history_rounded, color: _kBlack),
-            const SizedBox(width: 8),
-            const Expanded(
-              child: Text(
-                'Booking History',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: _kBlack,
-                ),
-              ),
-            ),
-            Text(
-              '${history.length} completed',
-              style: const TextStyle(
-                fontSize: 12,
-                color: _kTextSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
+  Widget _buildFilterBar() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _BookingFilter.values.map((filter) {
+          final selected = selectedFilter == filter;
+          final count = countFor(filter);
 
-        if (history.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 18),
-            child: Center(
-              child: Text(
-                'No completed bookings yet.',
-                style: TextStyle(color: _kTextSecondary),
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(
+                filter == _BookingFilter.all
+                    ? filterLabel(filter)
+                    : '${filterLabel(filter)} · $count',
+              ),
+              selected: selected,
+              showCheckmark: false,
+              onSelected: (_) => setState(() => selectedFilter = filter),
+              selectedColor: _kYellow,
+              backgroundColor: Colors.white,
+              side: BorderSide(color: selected ? _kYellow : _kBorder),
+              labelStyle: TextStyle(
+                color: _kBlack,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 13,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
               ),
             ),
-          )
-        else
-          ...history.map(
-            (booking) => Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: _buildBookingCard(
-                booking,
-                isHistory: true,
-              ),
-            ),
-          ),
-      ],
+          );
+        }).toList(),
+      ),
     );
   }
 
-  Widget _buildBookingCard(
-    dynamic booking, {
-    required bool isHistory,
-  }) {
+  // ----------------------------------------------------------
+  // BOOKING CARD
+  // ----------------------------------------------------------
+
+  Widget _buildBookingCard(dynamic booking) {
     final provider = booking['provider'];
     final service = booking['service'];
 
-    final providerName =
-        provider?['name']?.toString() ?? 'Unknown Provider';
+    final providerName = provider?['name']?.toString() ?? 'Unknown provider';
+    final providerEmail = provider?['email']?.toString() ?? '';
 
-    final serviceName =
-        service?['name']?.toString() ??
+    final serviceName = service?['name']?.toString() ??
         service?['category']?.toString() ??
-        'Unknown Service';
+        'Unknown service';
 
     final date = booking['requestedDate']?.toString() ?? '';
     final time = booking['requestedTime']?.toString() ?? '';
     final address = booking['address']?.toString() ?? '';
 
-    final proposedDate =
-        booking['proposedDate']?.toString() ?? '';
-    final proposedTime =
-        booking['proposedTime']?.toString() ?? '';
+    final proposedDate = booking['proposedDate']?.toString() ?? '';
+    final proposedTime = booking['proposedTime']?.toString() ?? '';
+    final rejectionReason = booking['rejectionReason']?.toString() ?? '';
 
-    final rejectionReason =
-        booking['rejectionReason']?.toString() ?? '';
+    final status = _statusOf(booking);
+    final requestId = int.tryParse(booking['id']?.toString() ?? '');
+    final isProcessing =
+        requestId != null && processingRequests.contains(requestId);
 
-    final status = booking['status']?.toString() ?? 'PENDING';
-    final requestId =
-        int.tryParse(booking['id']?.toString() ?? '');
-
-    final hasProposal =
-        (status == 'TIME_PROPOSED' ||
-            status == 'RESCHEDULE_PROPOSED') &&
+    final hasProposal = _kNeedsResponse.contains(status) &&
         proposedDate.isNotEmpty &&
         proposedTime.isNotEmpty;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _kBorder),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+    final needsResponse = _kNeedsResponse.contains(status);
+    final isHistory = status == 'COMPLETED';
+
+    final requestedText = date.isEmpty && time.isEmpty
+        ? 'As soon as possible'
+        : '${formatDate(date)} at ${formatTime(time)}';
+
+    final canChat = providerEmail.isNotEmpty &&
+        (status == 'ACCEPTED' ||
+            status == 'CONFIRMED' ||
+            status == 'IN_PROGRESS' ||
+            _kNeedsResponse.contains(status) ||
+            status == 'NEGOTIATING' ||
+            status == 'CUSTOMER_TIME_PROPOSED' ||
+            status == 'PENDING');
+
+    return Semantics(
+      container: true,
+      label: '$providerName, $serviceName, ${displayStatus(status)}',
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: needsResponse ? _kYellow : _kBorder,
+            width: needsResponse ? 1.5 : 1,
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: const BoxDecoration(
-                    color: _kYellow,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.person_rounded,
+            if (needsResponse)
+              Container(
+                width: double.infinity,
+                color: _kYellow,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 7,
+                ),
+                child: const Text(
+                  'Waiting for your response',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
                     color: _kBlack,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    providerName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: _kBlack,
+              ),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCardHeader(
+                    providerName: providerName,
+                    providerEmail: providerEmail,
+                    serviceName: serviceName,
+                    status: status,
+                    canChat: canChat,
+                  ),
+                  const SizedBox(height: 16),
+                  _detailRow(
+                    Icons.calendar_month_rounded,
+                    'Your requested time',
+                    requestedText,
+                  ),
+                  const SizedBox(height: 12),
+                  _detailRow(
+                    Icons.location_on_rounded,
+                    'Location',
+                    address.isEmpty ? 'No address provided' : address,
+                    muted: address.isEmpty,
+                  ),
+
+                  if (hasProposal) ...[
+                    const SizedBox(height: 14),
+                    _buildProposalBox(proposedDate, proposedTime),
+                  ],
+
+                  if (status == 'PENDING') ...[
+                    const SizedBox(height: 14),
+                    _infoMessage(
+                      'Sent to the provider. You will be notified when they '
+                      'respond.',
+                      icon: Icons.hourglass_top_rounded,
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _StatusChip(
-                  status: status,
-                  label: displayStatus(status),
-                ),
-              ],
-            ),
+                  ],
 
-            const Divider(height: 26, color: Color(0xFFEFEFEA)),
+                  if (status == 'CUSTOMER_TIME_PROPOSED') ...[
+                    const SizedBox(height: 14),
+                    _infoMessage(
+                      'Your proposed time is waiting for the provider to '
+                      'confirm.',
+                      icon: Icons.schedule_send_rounded,
+                    ),
+                  ],
 
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 6,
-              ),
-              decoration: BoxDecoration(
-                color: _kBlack,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                serviceName,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _kYellow,
-                ),
-              ),
-            ),
+                  if (status == 'NEGOTIATING') ...[
+                    const SizedBox(height: 14),
+                    _infoMessage(
+                      'You asked for a different time. The provider will '
+                      'suggest a new one.',
+                      icon: Icons.schedule_send_rounded,
+                    ),
+                  ],
 
-            const SizedBox(height: 14),
-
-            _iconRow(
-              Icons.calendar_today_rounded,
-              formatDate(date),
-            ),
-
-            const SizedBox(height: 10),
-
-            _iconRow(
-              Icons.access_time_rounded,
-              formatTime(time),
-            ),
-
-            const SizedBox(height: 10),
-
-            _iconRow(
-              Icons.location_on_rounded,
-              address.isEmpty ? 'No address provided' : address,
-            ),
-
-            if (hasProposal) ...[
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7D9),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: _kYellow.withValues(alpha: 0.7),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.event_available_rounded,
-                          color: _kBlack,
-                          size: 19,
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Provider Proposed New Time',
+                  if (status == 'REJECTED' &&
+                      rejectionReason.trim().isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFDE3E3),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Provider\'s reason',
                             style: TextStyle(
+                              fontSize: 12,
+                              color: _kDanger,
                               fontWeight: FontWeight.w800,
-                              color: _kBlack,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '${formatDate(proposedDate)} at ${formatTime(proposedTime)}',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: _kBlack,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      'Accept this time or reject it to request another time.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _kTextSecondary,
+                          const SizedBox(height: 4),
+                          Text(
+                            rejectionReason,
+                            style: const TextStyle(
+                              color: _kBlack,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                ),
-              ),
-            ],
 
-            if (status == 'CUSTOMER_TIME_PROPOSED') ...[
-              const SizedBox(height: 14),
-              _infoMessage(
-                'Your previously proposed time is waiting for provider confirmation.',
-              ),
-            ],
-
-            if (status == 'NEGOTIATING') ...[
-              const SizedBox(height: 14),
-              _infoMessage(
-                'You requested a new appointment time. '
-                'Waiting for the provider to propose another time.',
-              ),
-            ],
-
-            if (status == 'REJECTED' &&
-                rejectionReason.trim().isNotEmpty) ...[
-              const SizedBox(height: 14),
-              _infoMessage(
-                'Reason: $rejectionReason',
-                isError: true,
-              ),
-            ],
-
-            const SizedBox(height: 16),
-
-            if (hasProposal && requestId != null)
-              _buildProposalActions(requestId),
-
-            if (status == 'ACCEPTED')
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _kBlack,
-                    side: const BorderSide(
-                      color: _kBlack,
-                      width: 1.3,
+                  if (hasProposal && requestId != null) ...[
+                    const SizedBox(height: 18),
+                    _primaryButton(
+                      label: 'Accept this time',
+                      icon: Icons.check_circle_outline_rounded,
+                      isLoading: isProcessing,
+                      onPressed: () => approveProposedTime(requestId),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                    const SizedBox(height: 10),
+                    _outlineButton(
+                      label: 'Ask for a different time',
+                      icon: Icons.refresh_rounded,
+                      isDisabled: isProcessing,
+                      onPressed: () => rejectProposedTime(requestId),
                     ),
-                  ),
-                  onPressed: () {
-                    _showMessage(
-                      'Contact feature will be added later.',
-                    );
-                  },
-                  icon: const Icon(Icons.phone_rounded, size: 18),
-                  label: const Text('Contact Provider'),
-                ),
-              ),
+                  ],
 
-            if (isHistory && requestId != null)
-              _buildReviewButton(requestId, providerName),
+                  if (isHistory && requestId != null) ...[
+                    const SizedBox(height: 18),
+                    _buildReviewButton(requestId, providerName),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProposalActions(int requestId) {
-    return Column(
+  Widget _buildCardHeader({
+    required String providerName,
+    required String providerEmail,
+    required String serviceName,
+    required String status,
+    required bool canChat,
+  }) {
+    final initial =
+        providerName.isNotEmpty ? providerName[0].toUpperCase() : '?';
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: double.infinity,
+        Container(
+          width: 46,
           height: 46,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kYellow,
-              foregroundColor: _kBlack,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            onPressed: isProcessing
-                ? null
-                : () => approveProposedTime(requestId),
-            icon: const Icon(Icons.check_circle_outline_rounded),
-            label: const Text(
-              'Accept Time',
-              style: TextStyle(fontWeight: FontWeight.w800),
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: _kYellow,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            initial,
+            style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: _kBlack,
             ),
           ),
         ),
-        const SizedBox(height: 9),
-        SizedBox(
-          width: double.infinity,
-          height: 46,
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _kBlack,
-              side: const BorderSide(color: _kBlack),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                providerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: _kBlack,
+                ),
               ),
-            ),
-            onPressed: isProcessing
-                ? null
-                : () => rejectProposedTime(requestId),
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text(
-              'Reject & Get New Time',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
+              const SizedBox(height: 2),
+              Text(
+                serviceName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _StatusChip(status: status, label: displayStatus(status)),
+            ],
           ),
         ),
+        if (canChat)
+          IconButton(
+            tooltip: 'Chat with $providerName',
+            style: IconButton.styleFrom(
+              backgroundColor: _kSurfaceMuted,
+              foregroundColor: _kBlack,
+              fixedSize: const Size(44, 44),
+            ),
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+            onPressed: () => _openChat(providerEmail, providerName),
+          ),
       ],
     );
   }
 
-  Widget _buildReviewButton(int requestId, String providerName) {
-    final isReviewed = reviewedBookings[requestId] == true;
+  Widget _buildProposalBox(String proposedDate, String proposedTime) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _kYellowSoft,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kYellow),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.event_available_rounded, color: _kBlack),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Time offered by provider',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _kTextSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${formatDate(proposedDate)} at ${formatTime(proposedTime)}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: _kBlack,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    if (isReviewed) {
+  Widget _buildReviewButton(int requestId, String providerName) {
+    if (reviewedBookings[requestId] == true) {
       return SizedBox(
         width: double.infinity,
-        height: 46,
+        height: 50,
         child: OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
-            disabledForegroundColor: _kTextSecondary,
+            disabledForegroundColor: _kSuccess,
             side: const BorderSide(color: _kBorder),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -771,80 +1009,131 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> {
           ),
           onPressed: null,
           icon: const Icon(Icons.check_circle_rounded, size: 18),
-          label: const Text('Rated'),
+          label: const Text(
+            'You rated this provider',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
         ),
       );
     }
 
+    return _primaryButton(
+      label: 'Rate provider',
+      icon: Icons.star_rounded,
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RateProviderScreen(
+              serviceRequestId: requestId,
+              providerName: providerName,
+            ),
+          ),
+        ).then((_) => loadBookings());
+      },
+    );
+  }
+
+  // ----------------------------------------------------------
+  // SHARED WIDGETS
+  // ----------------------------------------------------------
+
+  Widget _primaryButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    bool isLoading = false,
+  }) {
     return SizedBox(
       width: double.infinity,
-      height: 46,
+      height: 50,
       child: ElevatedButton.icon(
+        onPressed: isLoading ? null : onPressed,
+        icon: isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: _kBlack,
+                ),
+              )
+            : Icon(icon, size: 19),
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: _kYellow,
           foregroundColor: _kBlack,
+          disabledBackgroundColor: _kYellow.withValues(alpha: 0.5),
+          disabledForegroundColor: _kBlack.withValues(alpha: 0.6),
           elevation: 0,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
         ),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => RateProviderScreen(
-                serviceRequestId: requestId,
-                providerName: providerName,
-              ),
-            ),
-          ).then((_) => loadBookings());
-        },
-        icon: const Icon(Icons.star_rounded, size: 19),
-        label: const Text(
-          'Rate Provider',
-          style: TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+
+  Widget _outlineButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    bool isDisabled = false,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: OutlinedButton.icon(
+        onPressed: isDisabled ? null : onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _kBlack,
+          disabledForegroundColor: _kBlack.withValues(alpha: 0.4),
+          side: BorderSide(
+            color: isDisabled ? _kBlack.withValues(alpha: 0.3) : _kBlack,
+            width: 1.2,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
     );
   }
 
-  Widget _infoMessage(String message, {bool isError = false}) {
+  Widget _infoMessage(String message, {IconData icon = Icons.info_outline}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isError
-            ? const Color(0xFFFDE3E3)
-            : const Color(0xFFF3F3EE),
+        color: _kSurfaceMuted,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(
-        message,
-        style: TextStyle(
-          color: isError
-              ? const Color(0xFFB3261E)
-              : _kTextSecondary,
-          fontSize: 13,
-          height: 1.4,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(String message) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 45),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _EmptyBookingsIcon(),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: _kTextSecondary,
+          Icon(icon, size: 18, color: _kTextSecondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: _kTextSecondary,
+                fontSize: 13,
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -852,113 +1141,216 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> {
     );
   }
 
-  Widget _iconRow(IconData icon, String text) {
+  Widget _detailRow(
+    IconData icon,
+    String label,
+    String value, {
+    bool muted = false,
+  }) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 30,
-          height: 30,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
-            color: const Color(0xFFF3F3EE),
+            color: _kSurfaceMuted,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, size: 16, color: _kBlack),
+          child: Icon(icon, size: 17, color: _kBlack),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: _kTextSecondary,
-              fontSize: 14,
-              height: 1.3,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextSecondary,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
+                  color: muted ? _kTextSecondary : _kBlack,
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
-}
 
-class _StatusChip extends StatelessWidget {
-  final String status;
-  final String label;
+  // ----------------------------------------------------------
+  // LOADING / EMPTY / ERROR STATES
+  // ----------------------------------------------------------
 
-  const _StatusChip({
-    required this.status,
-    required this.label,
-  });
+  Widget _buildSkeleton() {
+    Widget bar(double w, double h) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: _kSurfaceMuted,
+            borderRadius: BorderRadius.circular(8),
+          ),
+        );
 
-  @override
-  Widget build(BuildContext context) {
-    Color background;
-    Color foreground;
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+      children: [
+        bar(double.infinity, 52),
+        const SizedBox(height: 18),
+        for (int i = 0; i < 3; i++)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _kBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: const BoxDecoration(
+                        color: _kSurfaceMuted,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        bar(140, 14),
+                        const SizedBox(height: 8),
+                        bar(90, 12),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                bar(double.infinity, 12),
+                const SizedBox(height: 10),
+                bar(200, 12),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 
-    switch (status.toUpperCase()) {
-      case 'PENDING':
-        background = const Color(0xFFFFF1BF);
-        foreground = const Color(0xFF7A5A00);
-        break;
+  Widget _buildEmptyState() {
+    String title;
+    String subtitle;
 
-      case 'ACCEPTED':
-      case 'CONFIRMED':
-        background = _kBlack;
-        foreground = _kYellow;
-        break;
-
-      case 'COMPLETED':
-        background = const Color(0xFFDFF5E6);
-        foreground = const Color(0xFF1B7A3C);
-        break;
-
-      case 'REJECTED':
-      case 'DECLINED':
-      case 'CANCELLED':
-      case 'CANCELED':
-        background = const Color(0xFFFDE3E3);
-        foreground = const Color(0xFFB3261E);
-        break;
-
-      case 'TIME_PROPOSED':
-      case 'RESCHEDULE_PROPOSED':
-      case 'NEGOTIATING':
-      case 'CUSTOMER_TIME_PROPOSED':
-        background = const Color(0xFFFFF1BF);
-        foreground = const Color(0xFF7A5A00);
-        break;
-
-      default:
-        background = const Color(0xFFEDEDE8);
-        foreground = _kTextSecondary;
+    if (showHistory) {
+      title = 'No completed bookings yet';
+      subtitle = 'Finished services will appear here, where you can rate '
+          'your provider.';
+    } else if (selectedFilter == _BookingFilter.all) {
+      title = 'No active bookings';
+      subtitle = 'When you book a service, you can track it here.';
+    } else {
+      title = 'Nothing under "${filterLabel(selectedFilter)}"';
+      subtitle = 'Try another filter to see your other bookings.';
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 11,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: foreground,
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
+      child: Column(
+        children: [
+          _circleIcon(Icons.calendar_month_rounded),
+          const SizedBox(height: 18),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: _kBlack,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: _kTextSecondary,
+            ),
+          ),
+          if (!showHistory && selectedFilter != _BookingFilter.all) ...[
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () =>
+                  setState(() => selectedFilter = _BookingFilter.all),
+              child: const Text(
+                'Show all bookings',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: _kBlack,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
-}
 
-class _EmptyBookingsIcon extends StatelessWidget {
-  const _EmptyBookingsIcon();
+  Widget _buildErrorState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
+      child: Column(
+        children: [
+          _circleIcon(Icons.cloud_off_rounded),
+          const SizedBox(height: 18),
+          const Text(
+            'Could not load your bookings',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: _kBlack,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Check your connection and try again.',
+            style: TextStyle(fontSize: 13, color: _kTextSecondary),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: 160,
+            child: _primaryButton(
+              label: 'Try again',
+              icon: Icons.refresh_rounded,
+              onPressed: () {
+                setState(() => isLoading = true);
+                loadBookings();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _circleIcon(IconData icon) {
     return Container(
       width: 84,
       height: 84,
@@ -966,10 +1358,48 @@ class _EmptyBookingsIcon extends StatelessWidget {
         color: _kYellow.withValues(alpha: 0.18),
         shape: BoxShape.circle,
       ),
-      child: const Icon(
-        Icons.calendar_month_rounded,
-        size: 38,
-        color: _kBlack,
+      child: Icon(icon, size: 38, color: _kBlack),
+    );
+  }
+}
+
+// ============================================================
+// STATUS CHIP
+// ============================================================
+
+class _StatusChip extends StatelessWidget {
+  final String status;
+  final String label;
+
+  const _StatusChip({required this.status, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = _styleFor(status);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: style.background,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(style.icon, size: 13, color: style.foreground),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: style.foreground,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
