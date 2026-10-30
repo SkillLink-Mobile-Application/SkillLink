@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../services/api_service.dart';
 
 const Color _kYellow = Color(0xFFFFC400);
@@ -25,22 +28,33 @@ class RequestServiceScreen extends StatefulWidget {
   });
 
   @override
-  State<RequestServiceScreen> createState() => _RequestServiceScreenState();
+  State<RequestServiceScreen> createState() =>
+      _RequestServiceScreenState();
 }
 
 class _RequestServiceScreenState extends State<RequestServiceScreen> {
   final _formKey = GlobalKey<FormState>();
   final addressController = TextEditingController();
   final descriptionController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  final List<File> selectedPhotos = [];
+  static const int _maxPhotos = 4;
 
   List<Map<String, dynamic>> availabilitySlots = [];
 
   bool isLoadingAvailability = true;
   bool isSubmitting = false;
+  bool isGettingLocation = false;
   String? availabilityError;
+
+  String serviceType = 'SCHEDULED';
 
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
+  double? latitude;
+  double? longitude;
+
+  bool get isScheduled => serviceType == 'SCHEDULED';
 
   @override
   void initState() {
@@ -49,10 +63,12 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   }
 
   Future<void> _loadAvailability() async {
-    setState(() {
-      isLoadingAvailability = true;
-      availabilityError = null;
-    });
+    if (mounted) {
+      setState(() {
+        isLoadingAvailability = true;
+        availabilityError = null;
+      });
+    }
 
     try {
       final response = await ApiService.getProviderAvailability(
@@ -63,7 +79,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
 
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-
       final validSlots = <Map<String, dynamic>>[];
 
       for (final item in response) {
@@ -84,7 +99,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
         final specificDate = _parseDate(slot['specificDate']);
         final weekday = _weekdayFromValue(slot['dayOfWeek']);
 
-        // Accept either a valid specific date or a weekly weekday.
         if (specificDate != null) {
           if (specificDate.isBefore(today)) continue;
         } else if (weekday == null) {
@@ -103,12 +117,13 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               'This provider has not added any future available days and times yet.';
         }
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
 
       setState(() {
         isLoadingAvailability = false;
-        availabilityError = 'Could not load availability. Please try again.';
+        availabilityError =
+            'Could not load availability. Please try again.';
       });
     }
   }
@@ -199,7 +214,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final dates = <String, DateTime>{};
 
-    // Add future dates matching weekly availability.
     final weekdays = availabilitySlots
         .where((slot) => _parseDate(slot['specificDate']) == null)
         .map((slot) => _weekdayFromValue(slot['dayOfWeek']))
@@ -208,16 +222,13 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
 
     for (int i = 0; i < 90; i++) {
       final date = today.add(Duration(days: i));
-
       if (weekdays.contains(date.weekday)) {
         dates[_dateKey(date)] = date;
       }
     }
 
-    // Add exact dates entered by the provider.
     for (final slot in availabilitySlots) {
       final date = _parseDate(slot['specificDate']);
-
       if (date != null && !date.isBefore(today)) {
         dates[_dateKey(date)] = date;
       }
@@ -236,15 +247,9 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       final specificDate = _parseDate(slot['specificDate']);
 
       if (specificDate != null) {
-        // Specific-date availability applies only to that exact date.
-        if (_sameDate(specificDate, date)) {
-          result.add(slot);
-        }
-      } else {
-        // Weekly availability applies to matching weekdays.
-        if (_weekdayFromValue(slot['dayOfWeek']) == date.weekday) {
-          result.add(slot);
-        }
+        if (_sameDate(specificDate, date)) result.add(slot);
+      } else if (_weekdayFromValue(slot['dayOfWeek']) == date.weekday) {
+        result.add(slot);
       }
     }
 
@@ -254,6 +259,8 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   List<TimeOfDay> _timesForDate(DateTime date) {
     final result = <TimeOfDay>[];
     final seenMinutes = <int>{};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
     for (final slot in _slotsForDate(date)) {
       final start = _parseTime(slot['startTime']);
@@ -267,11 +274,18 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       for (int minute = startMinutes;
           minute < endMinutes;
           minute += 30) {
-        if (seenMinutes.add(minute)) {
-          result.add(
-            TimeOfDay(hour: minute ~/ 60, minute: minute % 60),
-          );
+        final candidate = TimeOfDay(
+          hour: minute ~/ 60,
+          minute: minute % 60,
+        );
+
+        // Do not offer time slots that have already passed today.
+        if (_sameDate(date, today) &&
+            minute <= now.hour * 60 + now.minute) {
+          continue;
         }
+
+        if (seenMinutes.add(minute)) result.add(candidate);
       }
     }
 
@@ -300,14 +314,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 12),
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _kBorder,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
+              _sheetHandle(),
               const Padding(
                 padding: EdgeInsets.all(18),
                 child: Text(
@@ -400,14 +407,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 12),
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _kBorder,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
+              _sheetHandle(),
               Padding(
                 padding: const EdgeInsets.all(18),
                 child: Text(
@@ -465,44 +465,158 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     }
   }
 
+  Widget _sheetHandle() {
+    return Container(
+      width: 42,
+      height: 4,
+      decoration: BoxDecoration(
+        color: _kBorder,
+        borderRadius: BorderRadius.circular(10),
+      ),
+    );
+  }
+
+  Future<void> _getCurrentLocation() async {
+    if (isGettingLocation) return;
+
+    setState(() => isGettingLocation = true);
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        _showMessage(
+          'Please turn on your device location.',
+          color: _kDanger,
+        );
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied) {
+        _showMessage('Location permission was denied.', color: _kDanger);
+        return;
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        _showMessage(
+          'Location permission is permanently denied. Enable it in Settings.',
+          color: _kDanger,
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        latitude = position.latitude;
+        longitude = position.longitude;
+      });
+
+      _showMessage('GPS location added successfully.', color: _kSuccess);
+    } catch (e) {
+      _showMessage(
+        'Could not get your location. Please enter your address manually.',
+        color: _kDanger,
+      );
+    } finally {
+      if (mounted) setState(() => isGettingLocation = false);
+    }
+  }
+
+  void _clearLocation() {
+    setState(() {
+      latitude = null;
+      longitude = null;
+    });
+  }
+
   void _showMessage(String message, {Color? color}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color ?? _kBlack,
+      ),
     );
+  }
+
+  Future<void> _pickPhotos() async {
+    if (isSubmitting) return;
+    final remaining = _maxPhotos - selectedPhotos.length;
+    if (remaining <= 0) {
+      _showMessage('You can attach up to $_maxPhotos photos.');
+      return;
+    }
+
+    try {
+      final picked = await _imagePicker.pickMultiImage(
+        imageQuality: 85,
+        limit: remaining,
+      );
+      if (!mounted || picked.isEmpty) return;
+
+      setState(() {
+        selectedPhotos.addAll(
+          picked.take(remaining).map((image) => File(image.path)),
+        );
+      });
+    } catch (e) {
+      if (mounted) {
+        _showMessage('Could not select photos. Please try again.', color: _kDanger);
+      }
+    }
+  }
+
+  void _removePhoto(int index) {
+    if (index < 0 || index >= selectedPhotos.length) return;
+    setState(() => selectedPhotos.removeAt(index));
   }
 
   Future<void> submitRequest() async {
     if (isSubmitting) return;
     if (!_formKey.currentState!.validate()) return;
 
-    if (isLoadingAvailability) {
-      _showMessage('Please wait while availability loads.');
-      return;
-    }
+    if (isScheduled) {
+      if (isLoadingAvailability) {
+        _showMessage('Please wait while availability loads.');
+        return;
+      }
 
-    if (selectedDate == null || selectedTime == null) {
-      _showMessage('Please select an available date and time.');
-      return;
-    }
+      if (selectedDate == null || selectedTime == null) {
+        _showMessage('Please select an available date and time.');
+        return;
+      }
 
-    final selectedMinutes = _minutes(selectedTime!);
+      final selectedMinutes = _minutes(selectedTime!);
 
-    final isTimeAvailable = _slotsForDate(selectedDate!).any((slot) {
-      final start = _parseTime(slot['startTime']);
-      final end = _parseTime(slot['endTime']);
+      final isTimeAvailable = _slotsForDate(selectedDate!).any((slot) {
+        final start = _parseTime(slot['startTime']);
+        final end = _parseTime(slot['endTime']);
 
-      if (start == null || end == null) return false;
+        if (start == null || end == null) return false;
 
-      return selectedMinutes >= _minutes(start) &&
-          selectedMinutes < _minutes(end);
-    });
+        return selectedMinutes >= _minutes(start) &&
+            selectedMinutes < _minutes(end);
+      });
 
-    if (!isTimeAvailable) {
-      _showMessage(
-        'Selected time is outside the provider availability.',
-        color: _kDanger,
-      );
-      return;
+      if (!isTimeAvailable) {
+        _showMessage(
+          'Selected time is outside provider availability.',
+          color: _kDanger,
+        );
+        return;
+      }
     }
 
     setState(() => isSubmitting = true);
@@ -541,12 +655,17 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
         customerEmail: widget.customerEmail,
         providerEmail: widget.providerEmail,
         serviceId: serviceId,
-        requestedDate: _dateKey(selectedDate!),
-        requestedTime:
-            '${selectedTime!.hour.toString().padLeft(2, '0')}:'
-            '${selectedTime!.minute.toString().padLeft(2, '0')}',
+        serviceType: serviceType,
+        requestedDate: isScheduled ? _dateKey(selectedDate!) : null,
+        requestedTime: isScheduled
+            ? '${selectedTime!.hour.toString().padLeft(2, '0')}:'
+                '${selectedTime!.minute.toString().padLeft(2, '0')}'
+            : null,
         address: addressController.text.trim(),
         description: descriptionController.text.trim(),
+        photos: selectedPhotos,
+        latitude: latitude,
+        longitude: longitude,
       );
 
       if (!mounted) return;
@@ -556,10 +675,10 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
           'Service request submitted successfully!',
           color: _kSuccess,
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       } else {
         _showMessage(
-          'Failed to submit request. Check availability and try again.',
+          'Failed to submit request. Check your details and try again.',
           color: _kDanger,
         );
       }
@@ -673,6 +792,78 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     );
   }
 
+  Widget _serviceTypeOption({
+    required String value,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final selected = serviceType == value;
+
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: isSubmitting
+            ? null
+            : () {
+                setState(() {
+                  serviceType = value;
+                  selectedDate = null;
+                  selectedTime = null;
+                });
+              },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFFFF8D8) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? _kYellow : _kBorder,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: _kBlack, size: 22),
+                  const Spacer(),
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off,
+                    color: selected ? _kBlack : _kTextSecondary,
+                    size: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: _kBlack,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  height: 1.4,
+                  color: _kTextSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final availableDates = _availableDates;
@@ -744,75 +935,129 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                 subtitle: widget.serviceName,
               ),
               const SizedBox(height: 12),
-              _label('Select Available Date'),
-              const SizedBox(height: 8),
-              _pickerButton(
-                onPressed: _selectDate,
-                icon: Icons.calendar_today_rounded,
-                hasValue: selectedDate != null,
-                text: isLoadingAvailability
-                    ? 'Loading availability...'
-                    : selectedDate == null
-                        ? 'Choose available date'
-                        : _formatDate(selectedDate!),
-                enabled: !isLoadingAvailability && availableDates.isNotEmpty,
-              ),
-              if (isLoadingAvailability) ...[
-                const SizedBox(height: 10),
-                const LinearProgressIndicator(
-                  color: _kYellow,
-                  backgroundColor: _kBorder,
-                ),
-              ],
-              if (!isLoadingAvailability && availabilityError != null) ...[
-                const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _kBorder),
+              _label('When do you need this service?'),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _serviceTypeOption(
+                    value: 'SCHEDULED',
+                    title: 'Schedule',
+                    subtitle: 'Choose a date and available time.',
+                    icon: Icons.calendar_month_rounded,
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.info_outline, color: _kDanger),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          availabilityError!,
-                          style: const TextStyle(
-                            color: _kTextSecondary,
-                            fontSize: 13,
+                  const SizedBox(width: 12),
+                  _serviceTypeOption(
+                    value: 'ON_DEMAND',
+                    title: 'On-Demand',
+                    subtitle: 'Request service as soon as possible.',
+                    icon: Icons.flash_on_rounded,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              if (isScheduled) ...[
+                _label('Select Available Date'),
+                const SizedBox(height: 8),
+                _pickerButton(
+                  onPressed: _selectDate,
+                  icon: Icons.calendar_today_rounded,
+                  hasValue: selectedDate != null,
+                  text: isLoadingAvailability
+                      ? 'Loading availability...'
+                      : selectedDate == null
+                          ? 'Choose available date'
+                          : _formatDate(selectedDate!),
+                  enabled: !isLoadingAvailability &&
+                      availableDates.isNotEmpty,
+                ),
+                if (isLoadingAvailability) ...[
+                  const SizedBox(height: 10),
+                  const LinearProgressIndicator(
+                    color: _kYellow,
+                    backgroundColor: _kBorder,
+                  ),
+                ],
+                if (!isLoadingAvailability &&
+                    availabilityError != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _kBorder),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline, color: _kDanger),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            availabilityError!,
+                            style: const TextStyle(
+                              color: _kTextSecondary,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
-                      ),
-                      TextButton(
-                        onPressed: _loadAvailability,
-                        child: const Text(
-                          'Retry',
-                          style: TextStyle(color: _kBlack),
+                        TextButton(
+                          onPressed: _loadAvailability,
+                          child: const Text(
+                            'Retry',
+                            style: TextStyle(color: _kBlack),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                _label('Select Available Time'),
+                const SizedBox(height: 8),
+                _pickerButton(
+                  onPressed: _selectTime,
+                  icon: Icons.access_time_rounded,
+                  hasValue: selectedTime != null,
+                  text: selectedTime == null
+                      ? 'Choose available time'
+                      : _formatTime(selectedTime!),
+                  enabled: !isLoadingAvailability &&
+                      selectedDate != null &&
+                      _timesForDate(selectedDate!).isNotEmpty,
+                ),
+              ] else ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8D8),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _kYellow),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.flash_on_rounded, color: _kBlack),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Your request will be sent to the provider without a selected date or time. The provider can propose a suitable time.',
+                          style: TextStyle(
+                            color: _kBlack,
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
-              _label('Select Available Time'),
-              const SizedBox(height: 8),
-              _pickerButton(
-                onPressed: _selectTime,
-                icon: Icons.access_time_rounded,
-                hasValue: selectedTime != null,
-                text: selectedTime == null
-                    ? 'Choose available time'
-                    : _formatTime(selectedTime!),
-                enabled: !isLoadingAvailability &&
-                    selectedDate != null &&
-                    _timesForDate(selectedDate!).isNotEmpty,
-              ),
+
               const SizedBox(height: 20),
               _label('Service Address'),
               const SizedBox(height: 8),
@@ -832,6 +1077,80 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: isGettingLocation || isSubmitting
+                    ? null
+                    : _getCurrentLocation,
+                icon: isGettingLocation
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _kBlack,
+                        ),
+                      )
+                    : const Icon(Icons.my_location_rounded),
+                label: Text(
+                  isGettingLocation
+                      ? 'Getting GPS location...'
+                      : latitude != null
+                          ? 'GPS location added'
+                          : 'Add current GPS location (optional)',
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _kBlack,
+                  side: BorderSide(
+                    color: latitude != null ? _kSuccess : _kBorder,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 13,
+                  ),
+                ),
+              ),
+              if (latitude != null && longitude != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _kBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        color: _kSuccess,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'GPS: ${latitude!.toStringAsFixed(5)}, ${longitude!.toStringAsFixed(5)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: _kTextSecondary,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove GPS location',
+                        onPressed: _clearLocation,
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: _kDanger,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               _label('Describe Your Problem'),
               const SizedBox(height: 8),
@@ -851,6 +1170,72 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 20),
+              _label('Attach Photos (Optional)'),
+              const SizedBox(height: 6),
+              const Text(
+                'Add up to 4 photos to help the provider understand the problem.',
+                style: TextStyle(fontSize: 12.5, color: _kTextSecondary),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: isSubmitting || selectedPhotos.length >= _maxPhotos
+                    ? null
+                    : _pickPhotos,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: Text('Add Photos (${selectedPhotos.length}/$_maxPhotos)'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _kBlack,
+                  side: const BorderSide(color: _kBorder),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+              if (selectedPhotos.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 104,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: selectedPhotos.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.file(
+                              selectedPhotos[index],
+                              width: 104,
+                              height: 104,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: Material(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: isSubmitting ? null : () => _removePhoto(index),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(5),
+                                  child: Icon(Icons.close, size: 16, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
@@ -867,7 +1252,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                     ),
                     textStyle: const TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  onPressed: isSubmitting || isLoadingAvailability
+                  onPressed: isSubmitting || isGettingLocation
                       ? null
                       : submitRequest,
                   icon: isSubmitting
@@ -886,6 +1271,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
             ],
           ),
         ),

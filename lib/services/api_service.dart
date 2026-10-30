@@ -5,6 +5,10 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http_parser/http_parser.dart';
+
 import '../utils/session.dart';
 
 class ApiService {
@@ -784,62 +788,149 @@ class ApiService {
     }
   }
 
+  
   // ============================================================
   // CREATE SERVICE REQUEST
+  // Supports SCHEDULED and ON_DEMAND requests
+  // Supports optional photo uploads
+  // Converts selected photos to JPEG before uploading
   // ============================================================
 
-  static Future<Map<String, dynamic>?>
-      createServiceRequest({
+  static Future<Map<String, dynamic>?> createServiceRequest({
     required String customerEmail,
     required String providerEmail,
     required int serviceId,
-    required String requestedDate,
-    required String requestedTime,
+    required String serviceType,
+    String? requestedDate,
+    String? requestedTime,
     required String address,
     required String description,
+    double? latitude,
+    double? longitude,
+    List<File> photos = const [],
   }) async {
     try {
+      final Map<String, String> fields = {
+        'customerEmail': customerEmail,
+        'providerEmail': providerEmail,
+        'serviceId': serviceId.toString(),
+        'serviceType': serviceType,
+        'address': address,
+        'description': description,
+      };
+
+      // Date and time are required only for scheduled requests.
+      if (serviceType == 'SCHEDULED') {
+        if (requestedDate == null || requestedTime == null) {
+          debugPrint('Scheduled requests require a date and time.');
+          return null;
+        }
+
+        fields['requestedDate'] = requestedDate;
+        fields['requestedTime'] = requestedTime;
+      }
+
+      // Add GPS coordinates if available.
+      if (latitude != null && longitude != null) {
+        fields['latitude'] = latitude.toString();
+        fields['longitude'] = longitude.toString();
+      }
+
       final uri = Uri.parse(
         '$baseUrl/api/service-requests/create',
-      ).replace(
-        queryParameters: {
-          'customerEmail': customerEmail,
-          'providerEmail': providerEmail,
-          'serviceId': serviceId.toString(),
-          'requestedDate': requestedDate,
-          'requestedTime': requestedTime,
-          'address': address,
-          'description': description,
-        },
       );
 
-      final response = await http.post(uri);
+      final request = http.MultipartRequest('POST', uri);
+
+      request.fields.addAll(fields);
+
+      // Convert selected photos to JPEG and attach them.
+      if (photos.isNotEmpty) {
+        final tempDirectory = await getTemporaryDirectory();
+
+        int photoIndex = 0;
+
+        for (final photo in photos.take(4)) {
+          if (!await photo.exists()) {
+            debugPrint('Photo does not exist: ${photo.path}');
+            continue;
+          }
+
+          photoIndex++;
+
+          final jpegPath =
+              '${tempDirectory.path}/skilllink_${DateTime.now().microsecondsSinceEpoch}_$photoIndex.jpg';
+
+          final compressedImage =
+              await FlutterImageCompress.compressAndGetFile(
+            photo.absolute.path,
+            jpegPath,
+            format: CompressFormat.jpeg,
+            quality: 85,
+          );
+
+          if (compressedImage == null) {
+            debugPrint('Failed to convert photo: ${photo.path}');
+            return null;
+          }
+
+          final jpegFile = File(compressedImage.path);
+
+          if (!await jpegFile.exists()) {
+            debugPrint('Converted JPEG file does not exist.');
+            continue;
+          }
+
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              'photos',
+              jpegFile.path,
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+
+          debugPrint('JPEG photo added: ${jpegFile.path}');
+        }
+      }
 
       debugPrint(
-        'Create Service Request Status: '
-        '${response.statusCode}',
+        'Submitting service request with '
+        '${request.files.length} photos',
+      );
+
+      // Send request.
+      final streamedResponse = await request.send();
+
+      final response = await http.Response.fromStream(
+        streamedResponse,
       );
 
       debugPrint(
-        'Create Service Request Response: '
-        '${response.body}',
+        'Create Service Request Status: ${response.statusCode}',
       );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      debugPrint(
+        'Create Service Request Response: ${response.body}',
+      );
+
+      if (response.statusCode >= 200 &&
+          response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
       }
 
       return null;
-    } catch (e) {
-      debugPrint(
-        'Create Service Request Error: '
-        '$e',
-      );
-
+    } catch (e, stackTrace) {
+      debugPrint('Create Service Request Error: $e');
+      debugPrint(stackTrace.toString());
       return null;
     }
   }
 
+  
   // ============================================================
   // GET PROVIDER REQUESTS
   // ============================================================
