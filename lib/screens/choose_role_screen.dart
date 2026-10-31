@@ -40,55 +40,21 @@ class ChooseRoleScreen extends StatefulWidget {
 class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
   bool isLoading = false;
 
-  Future<void> selectRole(String role) async {
-    if (isLoading) return;
 
-    // Keep the existing login flow unchanged.
-    if (widget.isLoginFlow) {
-      if (role == 'CUSTOMER') {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const CustomerHomeScreen(),
-          ),
-        );
-      } else if (role == 'PROVIDER') {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const ProviderDashboardScreen(),
-          ),
-        );
-      }
-      return;
-    }
+Future<void> selectRole(String role) async {
+  if (isLoading) return;
 
-    setState(() => isLoading = true);
+  final selectedRole = role.toUpperCase();
 
-    final success = await ApiService.registerUser(
-      name: widget.name,
-      email: widget.email,
-      password: widget.password,
-      phone: widget.phone,
-      role: role,
-    );
+  if (widget.isLoginFlow) {
+    // Save selected profile.
+    Session.activeRole = selectedRole;
+
+    debugPrint('ACTIVE ROLE: ${Session.activeRole}');
 
     if (!mounted) return;
 
-    if (!success) {
-      setState(() => isLoading = false);
-      _showMessage('Registration failed. Please try again.');
-      return;
-    }
-
-    // Save the signed-in user's session.
-    Session.email = widget.email;
-    Session.roles = [role];
-
-    if (role == 'CUSTOMER') {
-      setState(() => isLoading = false);
-
-      // Customer registration flow remains unchanged.
+    if (selectedRole == 'CUSTOMER') {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
@@ -96,14 +62,50 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
         ),
         (route) => false,
       );
+    } else if (selectedRole == 'PROVIDER') {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ProviderDashboardScreen(),
+        ),
+        (route) => false,
+      );
+    }
+
+    return;
+  }
+
+  setState(() => isLoading = true);
+
+  try {
+    final success = await ApiService.registerUser(
+      name: widget.name,
+      email: widget.email,
+      password: widget.password,
+      phone: widget.phone,
+      role: selectedRole,
+    );
+
+    if (!mounted) return;
+
+    if (!success) {
+      _showMessage('Registration failed. Please try again.');
       return;
     }
 
-    if (role == 'PROVIDER') {
-      setState(() => isLoading = false);
+    Session.email = widget.email;
+    Session.roles = [selectedRole];
+    Session.activeRole = selectedRole;
 
-      // Navigate directly to the provider profile page.
-      // No popup and no "Complete Later" option.
+    if (selectedRole == 'CUSTOMER') {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const CustomerHomeScreen(),
+        ),
+        (route) => false,
+      );
+    } else if (selectedRole == 'PROVIDER') {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
@@ -112,7 +114,18 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
         (route) => false,
       );
     }
+  } catch (e) {
+    debugPrint('Role selection error: $e');
+
+    if (mounted) {
+      _showMessage('Something went wrong. Please try again.');
+    }
+  } finally {
+    if (mounted) {
+      setState(() => isLoading = false);
+    }
   }
+}
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

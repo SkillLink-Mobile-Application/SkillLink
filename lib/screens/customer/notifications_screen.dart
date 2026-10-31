@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
 import '../provider/provider_requests_screen.dart';
+import '../../main.dart' show handleNotificationNavigation;
 
 // Yellow & black palette (local to this screen)
 const Color _kYellow = Color(0xFFFFC400);
@@ -124,7 +125,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final int? id = _toInt(rawId);
 
     if (id == null) {
-      _showMessage('Notification ID eka invalid.');
+      _showMessage('There are no unread notifications.');
       return;
     }
 
@@ -173,10 +174,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         }
       });
 
-      _showMessage('Notifications okkoma read kala.');
+      _showMessage('All notifications marked as read.');
     } catch (e) {
       if (mounted) {
-        _showMessage('Notifications update karanna bari una.');
+        _showMessage('Failed to update notifications.');
       }
     }
   }
@@ -258,7 +259,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> clearAllNotifications() async {
     if (notifications.isEmpty) {
-      _showMessage('Notifications naha.');
+      _showMessage('No notifications to clear.');
       return;
     }
 
@@ -325,28 +326,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> handleNotificationTap(
     Map<String, dynamic> notification,
   ) async {
-    final String type = _text(
-      notification['type'] ?? notification['notificationType'],
-    ).toUpperCase();
-
+    // Mark notification as read first.
     await markAsRead(notification);
 
     if (!mounted) return;
 
-    if (type == 'NEW_SERVICE_REQUEST') {
-      Navigator.push(
-        context,
-        MaterialPageRoute<void>(
-          builder: (_) => const ProviderRequestsScreen(),
-        ),
-      );
-    } else {
-      final message = _text(
-        notification['message'] ?? notification['title'],
-        'Notification',
-      );
-      _showMessage(message);
-    }
+    // Navigate according to notification type.
+    handleNotificationNavigation(notification);
   }
 
   String _formatDate(dynamic value) {
@@ -500,7 +486,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Notifications load karanna bari una.',
+                'Unable to load notifications.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,

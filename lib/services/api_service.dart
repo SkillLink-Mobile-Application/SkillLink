@@ -12,7 +12,8 @@ import 'package:http_parser/http_parser.dart';
 import '../utils/session.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:8080';
+  //static const String baseUrl = 'http://10.0.2.2:8080';
+  static const String baseUrl = 'http://10.92.29.41:8080';
   // ============================================================
   // TEST CONNECTION
   // ============================================================
@@ -1621,32 +1622,47 @@ class ApiService {
 
   static Future<List<dynamic>> getNotifications() async {
     try {
+      debugPrint('========== GET NOTIFICATIONS ==========');
+      debugPrint('API URL: $baseUrl/api/notifications');
+      debugPrint('TOKEN EXISTS: ${Session.token.isNotEmpty}');
+
       final response = await http.get(
         Uri.parse('$baseUrl/api/notifications'),
         headers: {
           'Authorization': 'Bearer ${Session.token}',
+          'Accept': 'application/json',
         },
       );
 
-      debugPrint(
-        'Get Notifications Status: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'Get Notifications Response: ${response.body}',
-      );
+      debugPrint('STATUS CODE: ${response.statusCode}');
+      debugPrint('RESPONSE BODY: ${response.body}');
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final data = jsonDecode(response.body);
+
+        if (data is List) {
+          return data;
+        }
+
+        if (data is Map) {
+          final notifications =
+              data['data'] ?? data['notifications'];
+
+          if (notifications is List) {
+            return notifications;
+          }
+        }
+
+        throw Exception('Unexpected notification response format');
       }
 
-      return [];
-    } catch (e) {
-      debugPrint(
-        'Get Notifications Error: $e',
+      throw Exception(
+        'Failed to load notifications: '
+        '${response.statusCode} - ${response.body}',
       );
-
-      return [];
+    } catch (e) {
+      debugPrint('GET NOTIFICATIONS ERROR: $e');
+      rethrow;
     }
   }
 
