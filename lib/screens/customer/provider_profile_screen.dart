@@ -219,7 +219,7 @@ class _ProviderProfileScreenState
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Rs. $price',
+                    'Starting from Rs. $price',
                   style: const TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w800,

@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -55,13 +56,16 @@ IconData _categoryIcon(String category) {
 String _formatPrice(dynamic value) {
   final number = value is num ? value : num.tryParse(value?.toString() ?? '');
   if (number == null) return 'Rs. 0';
+
   final isWhole = number == number.roundToDouble();
   final text = isWhole ? number.toInt().toString() : number.toStringAsFixed(2);
   final parts = text.split('.');
+
   final whole = parts[0].replaceAllMapped(
     RegExp(r'\B(?=(\d{3})+(?!\d))'),
     (_) => ',',
   );
+
   return 'Rs. ${parts.length > 1 ? '$whole.${parts[1]}' : whole}';
 }
 
@@ -81,7 +85,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   bool hasError = false;
 
   String searchQuery = '';
-  String? selectedCategory; // null = all
+  String? selectedCategory;
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -103,6 +107,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
 
   void _toast(String text, {bool isError = false}) {
     if (!mounted) return;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -120,14 +125,20 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
 
   List<Map<String, dynamic>> get _filteredServices {
     final query = searchQuery.trim().toLowerCase();
+
     return services.where((service) {
       final category = service['category']?.toString() ?? '';
+
       if (selectedCategory != null && category != selectedCategory) {
         return false;
       }
+
       if (query.isEmpty) return true;
+
       final name = service['name']?.toString().toLowerCase() ?? '';
-      final description = service['description']?.toString().toLowerCase() ?? '';
+      final description =
+          service['description']?.toString().toLowerCase() ?? '';
+
       return name.contains(query) ||
           description.contains(query) ||
           category.toLowerCase().contains(query);
@@ -136,10 +147,12 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
 
   List<String> get _usedCategories {
     final set = <String>{};
+
     for (final service in services) {
       final category = service['category']?.toString() ?? '';
       if (category.isNotEmpty) set.add(category);
     }
+
     return set.toList()..sort();
   }
 
@@ -152,6 +165,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
 
     if (email.isEmpty) {
       if (!mounted) return;
+
       setState(() {
         isLoading = false;
         hasError = true;
@@ -170,9 +184,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               (item) => Map<String, dynamic>.from(item as Map),
             )
             .toList();
+
         isLoading = false;
         hasError = false;
-        // Reset filter if the chosen category no longer exists
+
         if (selectedCategory != null &&
             !_usedCategories.contains(selectedCategory)) {
           selectedCategory = null;
@@ -180,7 +195,9 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       });
     } catch (e) {
       debugPrint('Load Services Error: $e');
+
       if (!mounted) return;
+
       setState(() {
         isLoading = false;
         hasError = true;
@@ -189,7 +206,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   }
 
   // ============================================================
-  // SERVICE FORM (bottom sheet)
+  // SERVICE FORM
   // ============================================================
 
   Future<Map<String, dynamic>?> showServiceForm({
@@ -201,7 +218,9 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       useSafeArea: true,
       backgroundColor: const Color(0xFFFAFAF7),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(28),
+        ),
       ),
       builder: (_) => _ServiceFormSheet(service: service),
     );
@@ -215,7 +234,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     final email = Session.email;
 
     if (email.isEmpty) {
-      _toast('User session not found. Please login again.', isError: true);
+      _toast(
+        'User session not found. Please login again.',
+        isError: true,
+      );
       return;
     }
 
@@ -225,6 +247,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     setState(() => isSaving = true);
 
     bool success = false;
+
     try {
       success = await ApiService.addService(
         email: email,
@@ -238,6 +261,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     }
 
     if (!mounted) return;
+
     setState(() => isSaving = false);
 
     if (success) {
@@ -256,11 +280,15 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     final email = Session.email;
 
     if (email.isEmpty) {
-      _toast('User session not found. Please login again.', isError: true);
+      _toast(
+        'User session not found. Please login again.',
+        isError: true,
+      );
       return;
     }
 
     final serviceId = int.tryParse(service['id'].toString());
+
     if (serviceId == null) {
       _toast('Invalid service ID.', isError: true);
       return;
@@ -282,6 +310,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       );
 
       if (!mounted) return;
+
       setState(() => isSaving = false);
 
       if (success) {
@@ -292,7 +321,9 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       }
     } catch (e) {
       debugPrint('EDIT ERROR: $e');
+
       if (!mounted) return;
+
       setState(() => isSaving = false);
       _toast('Update error: $e', isError: true);
     }
@@ -306,11 +337,15 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     final email = Session.email;
 
     if (email.isEmpty) {
-      _toast('User session not found. Please login again.', isError: true);
+      _toast(
+        'User session not found. Please login again.',
+        isError: true,
+      );
       return;
     }
 
     final serviceId = int.tryParse(service['id'].toString());
+
     if (serviceId == null) {
       _toast('Invalid service ID.', isError: true);
       return;
@@ -332,18 +367,27 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               color: _kDanger.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.delete_outline_rounded,
-                color: _kDanger, size: 28),
+            child: const Icon(
+              Icons.delete_outline_rounded,
+              color: _kDanger,
+              size: 28,
+            ),
           ),
           title: const Text(
             'Delete service?',
-            style: TextStyle(fontWeight: FontWeight.w800, color: _kBlack),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: _kBlack,
+            ),
           ),
           content: Text(
             '"${service['name']}" will be removed from your profile. '
             'This cannot be undone.',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: _kTextSecondary, height: 1.4),
+            style: const TextStyle(
+              color: _kTextSecondary,
+              height: 1.4,
+            ),
           ),
           actionsAlignment: MainAxisAlignment.center,
           actions: [
@@ -378,13 +422,18 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     setState(() => isSaving = true);
 
     bool success = false;
+
     try {
-      success = await ApiService.deleteService(id: serviceId, email: email);
+      success = await ApiService.deleteService(
+        id: serviceId,
+        email: email,
+      );
     } catch (e) {
       debugPrint('Delete Service Error: $e');
     }
 
     if (!mounted) return;
+
     setState(() => isSaving = false);
 
     if (success) {
@@ -401,6 +450,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
 
   Widget _buildSummary() {
     final categories = _usedCategories.length;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -416,7 +466,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               color: _kYellow,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(Icons.handyman_rounded, color: _kBlack),
+            child: const Icon(
+              Icons.handyman_rounded,
+              color: _kBlack,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -436,7 +489,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                   categories == 0
                       ? 'Add your first service to get bookings'
                       : 'Across $categories ${categories == 1 ? 'category' : 'categories'}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -454,12 +510,21 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       onChanged: (value) => setState(() => searchQuery = value),
       decoration: InputDecoration(
         hintText: 'Search your services',
-        hintStyle: const TextStyle(color: _kTextSecondary, fontSize: 14.5),
-        prefixIcon: const Icon(Icons.search_rounded, color: _kBlack),
+        hintStyle: const TextStyle(
+          color: _kTextSecondary,
+          fontSize: 14.5,
+        ),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: _kBlack,
+        ),
         suffixIcon: searchQuery.isEmpty
             ? null
             : IconButton(
-                icon: const Icon(Icons.close_rounded, color: _kTextSecondary),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: _kTextSecondary,
+                ),
                 onPressed: () {
                   _searchController.clear();
                   setState(() => searchQuery = '');
@@ -478,7 +543,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: _kYellow, width: 2),
+          borderSide: const BorderSide(
+            color: _kYellow,
+            width: 2,
+          ),
         ),
       ),
     );
@@ -486,6 +554,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
 
   Widget _buildCategoryChips() {
     final categories = _usedCategories;
+
     if (categories.length < 2) return const SizedBox.shrink();
 
     Widget chip(String label, bool selected, VoidCallback onTap) {
@@ -498,7 +567,9 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
           showCheckmark: false,
           backgroundColor: Colors.white,
           selectedColor: _kBlack,
-          side: BorderSide(color: selected ? _kBlack : _kBorder),
+          side: BorderSide(
+            color: selected ? _kBlack : _kBorder,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -518,11 +589,17 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
         child: ListView(
           scrollDirection: Axis.horizontal,
           children: [
-            chip('All', selectedCategory == null,
-                () => setState(() => selectedCategory = null)),
+            chip(
+              'All',
+              selectedCategory == null,
+              () => setState(() => selectedCategory = null),
+            ),
             for (final category in categories)
-              chip(category, selectedCategory == category,
-                  () => setState(() => selectedCategory = category)),
+              chip(
+                category,
+                selectedCategory == category,
+                () => setState(() => selectedCategory = category),
+              ),
           ],
         ),
       ),
@@ -537,7 +614,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     VoidCallback? onAction,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      padding: const EdgeInsets.symmetric(
+        vertical: 48,
+        horizontal: 24,
+      ),
       child: Column(
         children: [
           Container(
@@ -547,7 +627,11 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               color: _kYellow.withValues(alpha: 0.18),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 44, color: _kBlack),
+            child: Icon(
+              icon,
+              size: 44,
+              color: _kBlack,
+            ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -563,7 +647,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: _kTextSecondary, height: 1.4),
+            style: const TextStyle(
+              color: _kTextSecondary,
+              height: 1.4,
+            ),
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 18),
@@ -573,12 +660,16 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                 backgroundColor: _kYellow,
                 foregroundColor: _kBlack,
                 elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               child: Text(actionLabel),
             ),
@@ -621,7 +712,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                     color: _kYellow,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(_categoryIcon(category), color: _kBlack),
+                  child: Icon(
+                    _categoryIcon(category),
+                    color: _kBlack,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -643,7 +737,9 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                       if (category.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: _kBlack,
                             borderRadius: BorderRadius.circular(10),
@@ -662,19 +758,37 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  constraints: const BoxConstraints(maxWidth: 145),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: _kYellowSoft,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    _formatPrice(service['price']),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                      color: _kBlack,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Starting from',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: _kTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatPrice(service['price']),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: _kBlack,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -693,7 +807,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               ),
             ],
             const SizedBox(height: 14),
-            const Divider(height: 1, color: Color(0xFFEFEFEA)),
+            const Divider(
+              height: 1,
+              color: Color(0xFFEFEFEA),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -701,15 +818,23 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _kBlack,
-                      side: const BorderSide(color: _kBlack, width: 1.3),
+                      side: const BorderSide(
+                        color: _kBlack,
+                        width: 1.3,
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     onPressed: isSaving ? null : () => editService(service),
-                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      size: 18,
+                    ),
                     label: const Text('Edit'),
                   ),
                 ),
@@ -718,15 +843,23 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _kDanger,
-                      side: const BorderSide(color: _kDanger, width: 1.3),
+                      side: const BorderSide(
+                        color: _kDanger,
+                        width: 1.3,
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     onPressed: isSaving ? null : () => deleteService(service),
-                    icon: const Icon(Icons.delete_outline, size: 18),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                    ),
                     label: const Text('Delete'),
                   ),
                 ),
@@ -774,7 +907,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               icon: Icons.build_circle_outlined,
               title: 'No services added yet.',
               subtitle:
-                  'Add what you offer, your price and a short description so customers can book you.',
+                  'Add what you offer, your starting price and a short description so customers can book you.',
               actionLabel: 'Add Service',
               onAction: addService,
             )
@@ -878,8 +1011,8 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
 
 // ============================================================
 // SERVICE FORM SHEET
-// Owns its own controllers so they are disposed safely.
 // ============================================================
+
 class _ServiceFormSheet extends StatefulWidget {
   final Map<String, dynamic>? service;
 
@@ -891,9 +1024,11 @@ class _ServiceFormSheet extends StatefulWidget {
 
 class _ServiceFormSheetState extends State<_ServiceFormSheet> {
   final _formKey = GlobalKey<FormState>();
+
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _priceController;
+
   late String _category;
   late final List<String> _categoryOptions;
 
@@ -902,26 +1037,36 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
   @override
   void initState() {
     super.initState();
+
     final s = widget.service;
 
-    _nameController = TextEditingController(text: s?['name']?.toString() ?? '');
-    _descriptionController =
-        TextEditingController(text: s?['description']?.toString() ?? '');
+    _nameController = TextEditingController(
+      text: s?['name']?.toString() ?? '',
+    );
+
+    _descriptionController = TextEditingController(
+      text: s?['description']?.toString() ?? '',
+    );
 
     String priceText = '';
     final rawPrice = s?['price'];
+
     if (rawPrice != null) {
       final number = rawPrice is num ? rawPrice : num.tryParse('$rawPrice');
+
       if (number != null) {
         priceText = number == number.roundToDouble()
             ? number.toInt().toString()
             : number.toString();
       }
     }
+
     _priceController = TextEditingController(text: priceText);
 
     _category = s?['category']?.toString() ?? _kCategories.first;
+
     _categoryOptions = [..._kCategories];
+
     if (!_categoryOptions.contains(_category)) {
       _categoryOptions.add(_category);
     }
@@ -940,23 +1085,42 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
     String? hint,
     required IconData icon,
   }) {
-    OutlineInputBorder border(Color color, [double width = 1]) =>
-        OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: color, width: width),
-        );
+    OutlineInputBorder border(Color color, [double width = 1]) {
+      return OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(
+          color: color,
+          width: width,
+        ),
+      );
+    }
 
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      labelStyle: const TextStyle(color: _kTextSecondary, fontSize: 14.5),
-      floatingLabelStyle:
-          const TextStyle(color: _kBlack, fontWeight: FontWeight.w700),
-      hintStyle: const TextStyle(color: _kTextSecondary, fontSize: 14),
-      prefixIcon: Icon(icon, color: _kBlack, size: 22),
+      labelStyle: const TextStyle(
+        color: _kTextSecondary,
+        fontSize: 14.5,
+      ),
+      floatingLabelStyle: const TextStyle(
+        color: _kBlack,
+        fontWeight: FontWeight.w700,
+      ),
+      hintStyle: const TextStyle(
+        color: _kTextSecondary,
+        fontSize: 14,
+      ),
+      prefixIcon: Icon(
+        icon,
+        color: _kBlack,
+        size: 22,
+      ),
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 16,
+        horizontal: 14,
+      ),
       border: border(_kBorder),
       enabledBorder: border(_kBorder),
       focusedBorder: border(_kYellow, 2),
@@ -967,7 +1131,9 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
+
     FocusScope.of(context).unfocus();
+
     Navigator.of(context).pop({
       'name': _nameController.text.trim(),
       'category': _category,
@@ -979,7 +1145,9 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         child: Form(
@@ -1034,8 +1202,15 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
                 ),
                 validator: (value) {
                   final text = value?.trim() ?? '';
-                  if (text.isEmpty) return 'Please enter a service name';
-                  if (text.length < 3) return 'Name is too short';
+
+                  if (text.isEmpty) {
+                    return 'Please enter a service name';
+                  }
+
+                  if (text.length < 3) {
+                    return 'Name is too short';
+                  }
+
                   return null;
                 },
               ),
@@ -1050,19 +1225,27 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
                   icon: Icons.category_outlined,
                 ),
                 items: _categoryOptions
-                    .map((c) => DropdownMenuItem<String>(
-                          value: c,
-                          child: Row(
-                            children: [
-                              Icon(_categoryIcon(c), size: 18, color: _kBlack),
-                              const SizedBox(width: 10),
-                              Text(c),
-                            ],
-                          ),
-                        ))
+                    .map(
+                      (c) => DropdownMenuItem<String>(
+                        value: c,
+                        child: Row(
+                          children: [
+                            Icon(
+                              _categoryIcon(c),
+                              size: 18,
+                              color: _kBlack,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(c),
+                          ],
+                        ),
+                      ),
+                    )
                     .toList(),
                 onChanged: (value) {
-                  if (value != null) setState(() => _category = value);
+                  if (value != null) {
+                    setState(() => _category = value);
+                  }
                 },
               ),
               const SizedBox(height: 16),
@@ -1082,6 +1265,7 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
                   if ((value?.trim() ?? '').isEmpty) {
                     return 'Please add a short description';
                   }
+
                   return null;
                 },
               ),
@@ -1089,27 +1273,48 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
               TextFormField(
                 controller: _priceController,
                 cursorColor: _kBlack,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                  FilteringTextInputFormatter.allow(
+                    RegExp(r'^\d*\.?\d{0,2}'),
+                  ),
                 ],
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => _submit(),
                 decoration: _decoration(
-                  label: 'Price (Rs.)',
-                  hint: 'Enter service price',
+                  label: 'Starting Price (Rs.)',
+                  hint: 'e.g. 2500',
                   icon: Icons.payments_outlined,
                 ),
                 validator: (value) {
                   final text = value?.trim() ?? '';
-                  if (text.isEmpty) return 'Please enter a price';
-                  final price = double.tryParse(text);
-                  if (price == null || price < 0) {
-                    return 'Please enter a valid price';
+
+                  if (text.isEmpty) {
+                    return 'Please enter a starting price';
                   }
+
+                  final price = double.tryParse(text);
+
+                  if (price == null || price <= 0) {
+                    return 'Please enter a valid price greater than zero';
+                  }
+
                   return null;
                 },
+              ),
+              const SizedBox(height: 8),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  'This is your minimum starting price. The final price may vary depending on the work required.',
+                  style: TextStyle(
+                    color: _kTextSecondary,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
               Row(
@@ -1119,13 +1324,17 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
                       onPressed: () => Navigator.of(context).pop(),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _kBlack,
-                        side: const BorderSide(color: _kBorder, width: 1.3),
+                        side: const BorderSide(
+                          color: _kBorder,
+                          width: 1.3,
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        textStyle:
-                            const TextStyle(fontWeight: FontWeight.w700),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       child: const Text('Cancel'),
                     ),
@@ -1143,10 +1352,13 @@ class _ServiceFormSheetState extends State<_ServiceFormSheet> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        textStyle:
-                            const TextStyle(fontWeight: FontWeight.w800),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                      child: Text(_isEditing ? 'Update' : 'Add Service'),
+                      child: Text(
+                        _isEditing ? 'Update' : 'Add Service',
+                      ),
                     ),
                   ),
                 ],
