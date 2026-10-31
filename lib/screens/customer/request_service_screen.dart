@@ -330,7 +330,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: dates.length,
-                  separatorBuilder: (_, __) =>
+                  separatorBuilder: (_, _) =>
                       const Divider(height: 1, color: _kBorder),
                   itemBuilder: (context, index) {
                     final date = dates[index];
@@ -424,7 +424,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: times.length,
-                  separatorBuilder: (_, __) =>
+                  separatorBuilder: (_, _) =>
                       const Divider(height: 1, color: _kBorder),
                   itemBuilder: (context, index) {
                     final time = times[index];
@@ -1200,7 +1200,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: selectedPhotos.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    separatorBuilder: (_, _) => const SizedBox(width: 10),
                     itemBuilder: (context, index) {
                       return Stack(
                         clipBehavior: Clip.none,

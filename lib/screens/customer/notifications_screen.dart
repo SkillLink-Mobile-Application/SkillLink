@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
-import '../provider/provider_requests_screen.dart';
 import '../../main.dart' show handleNotificationNavigation;
 
 // Yellow & black palette (local to this screen)

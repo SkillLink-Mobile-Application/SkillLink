@@ -13,10 +13,8 @@ import 'provider_list_screen.dart';
 // ============================================================
 
 const Color _kYellow = Color(0xFFFFC400);
-const Color _kYellowSoft = Color(0xFFFFF6D8);
 const Color _kBlack = Color(0xFF0D0D0D);
 const Color _kBackground = Color(0xFFF6F6F2);
-const Color _kSurfaceMuted = Color(0xFFF3F3EE);
 const Color _kTextSecondary = Color(0xFF6B6B6B);
 const Color _kBorder = Color(0xFFE4E4DE);
 
@@ -435,7 +433,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: _kCategories.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
           itemBuilder: (context, index) {
             final category = _kCategories[index];
             final selected = selectedCategory == category;
