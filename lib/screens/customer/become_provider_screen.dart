@@ -3,10 +3,10 @@ import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
 import '../../utils/session.dart';
-
+import '../provider/provider_profile_edit_screen.dart';
 import '../provider/provider_dashboard_screen.dart';
 
-// Yellow & black palette (local to this screen)
+// Yellow & black palette
 const Color _kYellow = Color(0xFFFFC400);
 const Color _kBlack = Color(0xFF0D0D0D);
 const Color _kBlackLight = Color(0xFF1E1E1E);
@@ -14,7 +14,7 @@ const Color _kBackground = Color(0xFFFAFAF7);
 const Color _kTextSecondary = Color(0xFF6B6B6B);
 const Color _kBorder = Color(0xFFE4E4DE);
 
-//==================== Become Provider Screen ====================
+// ==================== Become Provider Screen ====================
 
 class BecomeProviderScreen extends StatefulWidget {
   const BecomeProviderScreen({super.key});
@@ -24,9 +24,7 @@ class BecomeProviderScreen extends StatefulWidget {
       _BecomeProviderScreenState();
 }
 
-class _BecomeProviderScreenState
-    extends State<BecomeProviderScreen> {
-
+class _BecomeProviderScreenState extends State<BecomeProviderScreen> {
   bool isLoading = false;
 
   // ==================== Become Provider ====================
@@ -34,83 +32,93 @@ class _BecomeProviderScreenState
   Future<void> becomeProvider() async {
     final email = Session.email;
 
-    // Check login session
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'User session not found. Please login again.',
-          ),
+          content: Text('User session not found. Please login again.'),
         ),
       );
       return;
     }
 
-    // Already a provider
-    if (Session.roles.contains('PROVIDER')) {
-      Navigator.push(
+    // Check whether this user already has PROVIDER role.
+    final alreadyProvider = Session.roles.any(
+      (role) => role.toUpperCase() == 'PROVIDER',
+    );
+
+    // Existing provider: go directly to dashboard.
+    if (alreadyProvider) {
+      Session.activeRole = 'PROVIDER';
+
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              const ProviderDashboardScreen(),
+          builder: (context) => const ProviderDashboardScreen(),
         ),
+        (route) => false,
       );
 
       return;
     }
 
-    // Start loading
+    // New provider: add PROVIDER role through backend.
     setState(() {
       isLoading = true;
     });
 
-    // Call backend API
-    final success = await ApiService.addRole(
-      email: email,
-      role: 'PROVIDER',
-    );
+    try {
+      final success = await ApiService.addRole(
+        email: email,
+        role: 'PROVIDER',
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    // Stop loading
-    setState(() {
-      isLoading = false;
-    });
+      if (success) {
+        // Update current session.
+        if (!Session.roles.any(
+          (role) => role.toUpperCase() == 'PROVIDER',
+        )) {
+          Session.roles.add('PROVIDER');
+        }
 
-    // ==================== Success ====================
+        Session.activeRole = 'PROVIDER';
 
-    if (success) {
-      // Add provider role to current session
-      Session.roles.add('PROVIDER');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You are now a Service Provider!'),
+          ),
+        );
+
+        // New provider: open profile edit screen first.
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ProviderProfileEditScreen(),
+          ),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not become a Service Provider.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'You are now a Service Provider!',
-          ),
+        SnackBar(
+          content: Text('Something went wrong: $e'),
         ),
       );
-
-      // Go to Provider Dashboard
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              const ProviderDashboardScreen(),
-        ),
-      );
-    }
-
-    // ==================== Failed ====================
-
-    else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not become a Service Provider.',
-          ),
-        ),
-      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -159,7 +167,6 @@ class _BecomeProviderScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Back button
                   Container(
                     width: 42,
                     height: 42,
@@ -182,8 +189,6 @@ class _BecomeProviderScreenState
                     ),
                   ),
                   const SizedBox(height: 22),
-
-                  // ==================== Icon ====================
                   Center(
                     child: Container(
                       width: 92,
@@ -207,8 +212,6 @@ class _BecomeProviderScreenState
                     ),
                   ),
                   const SizedBox(height: 22),
-
-                  // ==================== Title ====================
                   const SizedBox(
                     width: double.infinity,
                     child: Text(
@@ -224,8 +227,6 @@ class _BecomeProviderScreenState
                     ),
                   ),
                   const SizedBox(height: 10),
-
-                  // ==================== Description ====================
                   SizedBox(
                     width: double.infinity,
                     child: Text(
@@ -261,31 +262,22 @@ class _BecomeProviderScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ==================== Info 1 ====================
           const _BenefitTile(
             icon: Icons.people_alt_rounded,
             title: 'Reach Customers',
             subtitle: 'Connect with people looking for your services.',
           ),
-
-          // ==================== Info 2 ====================
           const _BenefitTile(
             icon: Icons.work_rounded,
             title: 'Show Your Skills',
-            subtitle:
-                'Create your provider profile and list your services.',
+            subtitle: 'Create your provider profile and list your services.',
           ),
-
-          // ==================== Info 3 ====================
           const _BenefitTile(
             icon: Icons.trending_up_rounded,
             title: 'Grow Your Business',
             subtitle: 'Receive service requests through SkillLink.',
           ),
-
           const SizedBox(height: 14),
-
-          // ==================== Button ====================
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -300,7 +292,9 @@ class _BecomeProviderScreenState
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               onPressed: isLoading ? null : becomeProvider,
               icon: isLoading
@@ -312,16 +306,12 @@ class _BecomeProviderScreenState
                         color: _kBlack,
                       ),
                     )
-                  : const Icon(
-                      Icons.handyman_rounded,
-                    ),
+                  : const Icon(Icons.handyman_rounded),
               label: Text(
                 isLoading
                     ? 'Becoming a Provider...'
                     : 'Become a Service Provider',
-                style: const TextStyle(
-                  fontSize: 16,
-                ),
+                style: const TextStyle(fontSize: 16),
               ),
             ),
           ),

@@ -138,32 +138,32 @@ class ApiService {
     required String role,
   }) async {
     try {
+      final uri = Uri.parse(
+        '$baseUrl/api/users/add-role',
+      ).replace(
+        queryParameters: {
+          'role': role,
+        },
+      );
+
       final response = await http.post(
-        Uri.parse(
-          '$baseUrl/api/users/add-role'
-          '?email=${Uri.encodeComponent(email)}'
-          '&role=$role',
-        ),
-      );
+        uri,
+        headers: {
+          'Authorization': 'Bearer ${Session.token}',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 20));
 
-      debugPrint(
-        'Add Role Status Code: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'Add Role Response: ${response.body}',
-      );
+      debugPrint('Add Role Status Code: ${response.statusCode}');
+      debugPrint('Add Role Response: ${response.body}');
+      debugPrint('JWT Token Available: ${Session.token.isNotEmpty}');
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint(
-        'Add Role Error: $e',
-      );
-
+      debugPrint('Add Role Error: $e');
       return false;
     }
   }
-
   // ============================================================
   // SAVE PROVIDER PROFILE
   // ============================================================
@@ -748,6 +748,37 @@ class ApiService {
       return null;
     }
   }
+
+  static Future<bool> isProviderProfileComplete(String email) async {
+  final url = Uri.parse('$baseUrl/api/provider-profile/$email');
+
+  final response = await http.get(url);
+
+  // Provider profile eka thama hadala nathnam incomplete.
+  if (response.statusCode == 404) {
+    return false;
+  }
+
+  // Network/server/API errors incomplete profile ekak widihata
+  // treat karanne naha.
+  if (response.statusCode != 200) {
+    throw Exception(
+      'Failed to check provider profile: ${response.statusCode}',
+    );
+  }
+
+  final Map<String, dynamic> profile =
+      jsonDecode(response.body) as Map<String, dynamic>;
+
+  final nicNumber = profile['nicNumber']?.toString().trim() ?? '';
+  final serviceCategory =
+      profile['serviceCategory']?.toString().trim() ?? '';
+  final termsAccepted = profile['termsAccepted'] == true;
+
+  return nicNumber.isNotEmpty &&
+      serviceCategory.isNotEmpty &&
+      termsAccepted;
+}
 
   // ============================================================
   // GET CUSTOMER REQUESTS
@@ -1927,5 +1958,53 @@ class ApiService {
       return false;
     }
   }
+
+  // ==================== DELETE USER ROLE ====================
+
+static Future<Map<String, dynamic>?> deleteUserRole({
+  required String role,
+}) async {
+  try {
+    final uri = Uri.parse(
+      '$baseUrl/api/users/delete-role',
+    ).replace(
+      queryParameters: {'role': role},
+    );
+
+    final response = await http.delete(
+      uri,
+      headers: {
+        'Authorization': 'Bearer ${Session.token}',
+        'Accept': 'application/json',
+      },
+    ).timeout(const Duration(seconds: 20));
+
+    debugPrint('Delete Role Status: ${response.statusCode}');
+    debugPrint('Delete Role Response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      if (response.body.isEmpty) {
+        return {'message': 'Role deleted successfully.'};
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      return {'message': decoded.toString()};
+    }
+
+    return {
+      'error': response.body.isNotEmpty
+          ? response.body
+          : 'Failed to delete role.',
+    };
+  } catch (e) {
+    debugPrint('Delete Role Error: $e');
+    return {'error': 'Unable to connect to the server.'};
+  }
+}
 
 }

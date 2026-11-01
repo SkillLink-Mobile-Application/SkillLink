@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../services/api_service.dart';
 import '../../utils/session.dart';
+import '../login_screen.dart';
+import '../provider/provider_dashboard_screen.dart';
 import 'customer_edit_profile_screen.dart';
 import 'become_provider_screen.dart';
 import '../change_password_screen.dart';
 
-// Yellow & black palette (local to this screen)
+// Yellow & black palette
 const Color _kYellow = Color(0xFFFFC400);
 const Color _kBlack = Color(0xFF0D0D0D);
 const Color _kBackground = Color(0xFFF6F6F2);
 const Color _kTextSecondary = Color(0xFF6B6B6B);
 const Color _kBorder = Color(0xFFE4E4DE);
 const Color _kDanger = Color(0xFFD92D20);
-
-// ==================== Customer Profile Screen ====================
 
 class CustomerProfileScreen extends StatefulWidget {
   const CustomerProfileScreen({super.key});
@@ -27,6 +29,7 @@ class CustomerProfileScreen extends StatefulWidget {
 class _CustomerProfileScreenState
     extends State<CustomerProfileScreen> {
   bool isLoading = true;
+  bool isDeletingRole = false;
 
   String name = '';
   String email = '';
@@ -45,56 +48,218 @@ class _CustomerProfileScreenState
     if (Session.email.isEmpty) {
       if (!mounted) return;
 
-      setState(() {
-        isLoading = false;
-      });
+      setState(() => isLoading = false);
       return;
     }
 
-    final profile = await ApiService.getUserProfile(
-      email: Session.email,
-    );
-
-    debugPrint('CUSTOMER PROFILE EMAIL: ${Session.email}');
-    debugPrint('CUSTOMER PROFILE DATA: $profile');
-
-    if (!mounted) return;
-
-    if (profile != null) {
-      setState(() {
-        name = profile['name'] ?? '';
-        email = profile['email'] ?? Session.email;
-        phone = profile['phone'] ?? '';
-        profileImage = profile['profileImage'] ?? '';
-        isLoading = false;
-      });
-
-      debugPrint('CUSTOMER PROFILE IMAGE: $profileImage');
-    } else {
-      setState(() {
-        isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to load profile'),
-        ),
+    try {
+      final profile = await ApiService.getUserProfile(
+        email: Session.email,
       );
+
+      debugPrint('CUSTOMER PROFILE EMAIL: ${Session.email}');
+      debugPrint('CUSTOMER PROFILE DATA: $profile');
+
+      if (!mounted) return;
+
+      if (profile != null) {
+        setState(() {
+          name = profile['name']?.toString() ?? '';
+          email = profile['email']?.toString() ?? Session.email;
+          phone = profile['phone']?.toString() ?? '';
+          profileImage =
+              profile['profileImage']?.toString() ?? '';
+          isLoading = false;
+        });
+      } else {
+        setState(() => isLoading = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to load profile'),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Load Customer Profile Error: $e');
+
+      if (!mounted) return;
+      setState(() => isLoading = false);
     }
   }
 
   // ================= PROFILE IMAGE URL =================
 
   String get profileImageUrl {
-    if (profileImage.isEmpty) {
-      return '';
-    }
+    if (profileImage.isEmpty) return '';
 
     if (profileImage.startsWith('http')) {
       return profileImage;
     }
 
     return '${ApiService.baseUrl}$profileImage';
+  }
+
+  // ================= DELETE CUSTOMER ROLE =================
+
+  Future<void> confirmDeleteCustomerRole() async {
+    if (isDeletingRole) return;
+
+    final hasProviderRole = Session.roles.any(
+      (role) => role.toUpperCase() == 'PROVIDER',
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Delete Customer Account?',
+            style: TextStyle(
+              color: _kBlack,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: Text(
+            hasProviderRole
+                ? 'Your Customer role and related Customer data, '
+                    'including your Customer reviews and requests, '
+                    'will be permanently deleted. Your Provider '
+                    'account will remain active.'
+                : 'Your account and all related data, including '
+                    'your reviews and requests, will be permanently '
+                    'deleted. You can register again using this email.',
+            style: const TextStyle(
+              color: _kTextSecondary,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: _kTextSecondary),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kDanger,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await deleteCustomerRole();
+  }
+
+  Future<void> deleteCustomerRole() async {
+    if (isDeletingRole) return;
+
+    setState(() => isDeletingRole = true);
+
+    try {
+      final result = await ApiService.deleteUserRole(
+        role: 'CUSTOMER',
+      );
+
+      if (!mounted) return;
+
+      if (result == null || result.containsKey('error')) {
+        final errorMessage =
+            result?['error']?.toString() ??
+                'Unable to delete Customer role.';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+        return;
+      }
+
+      debugPrint('CUSTOMER ROLE DELETED: $result');
+
+      // Remove CUSTOMER from the local session.
+      Session.roles = Session.roles
+          .where(
+            (role) => role.toUpperCase() != 'CUSTOMER',
+          )
+          .toList();
+
+      final hasProviderRole = Session.roles.any(
+        (role) => role.toUpperCase() == 'PROVIDER',
+      );
+
+      if (hasProviderRole) {
+        // Keep the same account and switch to Provider.
+        Session.activeRole = 'PROVIDER';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Customer role deleted successfully.',
+            ),
+          ),
+        );
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ProviderDashboardScreen(),
+          ),
+          (route) => false,
+        );
+      } else {
+        // Last role deleted: clear the complete local session.
+        Session.email = '';
+        Session.roles = [];
+        Session.token = '';
+        Session.activeRole = '';
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('customerEmail');
+
+        if (!mounted) return;
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const LoginScreen(),
+          ),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      debugPrint('Delete Customer Role Error: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Something went wrong. Please try again.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isDeletingRole = false);
+      }
+    }
   }
 
   // ================= UI HELPERS =================
@@ -108,7 +273,9 @@ class _CustomerProfileScreenState
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      textStyle: const TextStyle(
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 
@@ -156,8 +323,7 @@ class _CustomerProfileScreenState
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    // ================= PROFILE PHOTO =================
-
+                    // PROFILE PHOTO
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
@@ -197,8 +363,7 @@ class _CustomerProfileScreenState
 
                     const SizedBox(height: 16),
 
-                    // ================= NAME =================
-
+                    // NAME
                     Text(
                       name.isEmpty ? 'Customer' : name,
                       style: const TextStyle(
@@ -212,8 +377,7 @@ class _CustomerProfileScreenState
 
                     const SizedBox(height: 4),
 
-                    // ================= EMAIL =================
-
+                    // EMAIL
                     Text(
                       email,
                       style: const TextStyle(
@@ -225,18 +389,13 @@ class _CustomerProfileScreenState
 
                     const SizedBox(height: 28),
 
-                    // ================= FULL NAME =================
-
                     _ProfileInfoTile(
                       icon: Icons.person_rounded,
                       title: 'Full Name',
-                      subtitle:
-                          name.isEmpty ? 'Not added' : name,
+                      subtitle: name.isEmpty ? 'Not added' : name,
                     ),
 
                     const SizedBox(height: 12),
-
-                    // ================= EMAIL =================
 
                     _ProfileInfoTile(
                       icon: Icons.email_rounded,
@@ -246,19 +405,15 @@ class _CustomerProfileScreenState
 
                     const SizedBox(height: 12),
 
-                    // ================= PHONE =================
-
                     _ProfileInfoTile(
                       icon: Icons.phone_rounded,
                       title: 'Phone Number',
-                      subtitle:
-                          phone.isEmpty ? 'Not added' : phone,
+                      subtitle: phone.isEmpty ? 'Not added' : phone,
                     ),
 
                     const SizedBox(height: 24),
 
-                    // ================= EDIT PROFILE =================
-
+                    // EDIT PROFILE
                     SizedBox(
                       width: double.infinity,
                       height: 54,
@@ -275,24 +430,26 @@ class _CustomerProfileScreenState
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        onPressed: () async {
-                          final updated =
-                              await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  CustomerEditProfileScreen(
-                                name: name,
-                                email: email,
-                                phone: phone,
-                              ),
-                            ),
-                          );
+                        onPressed: isDeletingRole
+                            ? null
+                            : () async {
+                                final updated =
+                                    await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        CustomerEditProfileScreen(
+                                      name: name,
+                                      email: email,
+                                      phone: phone,
+                                    ),
+                                  ),
+                                );
 
-                          if (updated == true && mounted) {
-                            await loadProfile();
-                          }
-                        },
+                                if (updated == true && mounted) {
+                                  await loadProfile();
+                                }
+                              },
                         icon: const Icon(
                           Icons.edit_rounded,
                           size: 18,
@@ -306,8 +463,7 @@ class _CustomerProfileScreenState
 
                     const SizedBox(height: 12),
 
-                    // ================= BECOME PROVIDER =================
-
+                    // BECOME PROVIDER
                     SizedBox(
                       width: double.infinity,
                       height: 54,
@@ -324,15 +480,17 @@ class _CustomerProfileScreenState
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const BecomeProviderScreen(),
-                            ),
-                          );
-                        },
+                        onPressed: isDeletingRole
+                            ? null
+                            : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const BecomeProviderScreen(),
+                                  ),
+                                );
+                              },
                         icon: const Icon(
                           Icons.handyman_rounded,
                           color: _kYellow,
@@ -346,22 +504,23 @@ class _CustomerProfileScreenState
 
                     const SizedBox(height: 12),
 
-                    // ================= CHANGE PASSWORD =================//
-
+                    // CHANGE PASSWORD
                     SizedBox(
                       width: double.infinity,
                       height: 52,
                       child: OutlinedButton.icon(
                         style: _outlinedStyle(),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const ChangePasswordScreen(),
-                            ),
-                          );
-                        },
+                        onPressed: isDeletingRole
+                            ? null
+                            : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ChangePasswordScreen(),
+                                  ),
+                                );
+                              },
                         icon: const Icon(Icons.lock_reset_rounded),
                         label: const Text(
                           'Change Password',
@@ -375,22 +534,67 @@ class _CustomerProfileScreenState
 
                     const SizedBox(height: 12),
 
-                    // ================= LOGOUT =================
-
+                    // DELETE CUSTOMER ROLE
                     SizedBox(
                       width: double.infinity,
                       height: 52,
                       child: OutlinedButton.icon(
                         style: _outlinedStyle(color: _kDanger),
-                        onPressed: () {
-                          Session.email = '';
-                          Session.roles = [];
+                        onPressed: isDeletingRole
+                            ? null
+                            : confirmDeleteCustomerRole,
+                        icon: isDeletingRole
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: _kDanger,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.delete_forever_rounded,
+                                size: 19,
+                              ),
+                        label: Text(
+                          isDeletingRole
+                              ? 'Deleting...'
+                              : 'Delete Customer Account',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
 
-                          Navigator.popUntil(
-                            context,
-                            (route) => route.isFirst,
-                          );
-                        },
+                    const SizedBox(height: 12),
+
+                    // LOGOUT
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        style: _outlinedStyle(color: _kDanger),
+                        onPressed: isDeletingRole
+                            ? null
+                            : () async {
+                                Session.email = '';
+                                Session.roles = [];
+                                Session.token = '';
+                                Session.activeRole = '';
+
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.remove('customerEmail');
+
+                                if (!context.mounted) return;
+
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const LoginScreen(),
+                                  ),
+                                  (route) => false,
+                                );
+                              },
                         icon: const Icon(
                           Icons.logout_rounded,
                           size: 18,

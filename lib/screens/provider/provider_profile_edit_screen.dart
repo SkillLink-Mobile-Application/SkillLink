@@ -1,3 +1,4 @@
+
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -7,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../services/api_service.dart';
 import '../../utils/session.dart';
+import '../customer/customer_home_screen.dart';
+import '../login_screen.dart';
 import 'provider_dashboard_screen.dart';
 
 // Yellow & black palette (local to this screen)
@@ -41,6 +44,7 @@ class _ProviderProfileEditScreenState
   bool isLoading = false;
   bool termsAccepted = false;
   bool isLoadingProfile = true;
+  bool isDeletingRole = false;
 
   String? selectedCategory;
   File? selectedProfileImage;
@@ -165,7 +169,7 @@ class _ProviderProfileEditScreenState
   }
 
   Future<void> saveProfile() async {
-    if (isLoading || isLoadingProfile) return;
+    if (isLoading || isDeletingRole || isLoadingProfile) return;
 
     if (!_formKey.currentState!.validate()) return;
 
@@ -247,12 +251,7 @@ class _ProviderProfileEditScreenState
 
       if (!mounted) return;
 
-      // Navigate to the dashboard only after successful submission.
-      if (!mounted) return;
-
-      final navigator = Navigator.of(context);
-
-      navigator.pushReplacement(
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => const ProviderDashboardScreen(),
         ),
@@ -266,6 +265,127 @@ class _ProviderProfileEditScreenState
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // DELETE PROVIDER ROLE
+  // ---------------------------------------------------------------------------
+
+  Future<void> deleteProviderRole() async {
+    if (isLoading || isDeletingRole) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(
+          'Delete Provider Role?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'Are you sure you want to delete your Provider role?\n\n'
+          'Your Provider profile and related Provider data will be '
+          'permanently deleted. This action cannot be undone.\n\n'
+          'If you have a Customer role, you can continue using '
+          'your Customer account.',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, false);
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, true);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: _kDanger,
+            ),
+            child: const Text(
+              'Delete Provider Role',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => isDeletingRole = true);
+
+    try {
+      final result = await ApiService.deleteUserRole(
+        role: 'PROVIDER',
+      );
+
+      if (!mounted) return;
+
+      if (result == null || result.containsKey('error')) {
+        _showMessage(
+          result?['error']?.toString() ??
+              'Failed to delete Provider role.',
+        );
+        return;
+      }
+
+      final message = result['message']?.toString() ??
+          'Provider role deleted successfully.';
+
+      // Remove PROVIDER from local session.
+      Session.roles.removeWhere(
+        (role) => role.toUpperCase() == 'PROVIDER',
+      );
+
+      // Check whether CUSTOMER role still exists.
+      final hasCustomerRole = Session.roles.any(
+        (role) => role.toUpperCase() == 'CUSTOMER',
+      );
+
+      if (hasCustomerRole) {
+        Session.activeRole = 'CUSTOMER';
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => const CustomerHomeScreen(),
+          ),
+          (route) => false,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      } else {
+        // No remaining role: clear the complete session.
+        Session.email = '';
+        Session.roles.clear();
+        Session.token = '';
+        Session.activeRole = '';
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => const LoginScreen(),
+          ),
+          (route) => false,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    } catch (e) {
+      debugPrint('Delete provider role error: $e');
+
+      if (mounted) {
+        _showMessage('Something went wrong. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isDeletingRole = false);
       }
     }
   }
@@ -431,7 +551,7 @@ class _ProviderProfileEditScreenState
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !isLoading,
+      canPop: !isLoading && !isDeletingRole,
       child: Scaffold(
         backgroundColor: _kBackground,
         appBar: AppBar(
@@ -453,7 +573,7 @@ class _ProviderProfileEditScreenState
               Icons.arrow_back,
               color: Colors.white,
             ),
-            onPressed: isLoading
+            onPressed: isLoading || isDeletingRole
                 ? null
                 : () => Navigator.of(context).maybePop(),
           ),
@@ -894,6 +1014,104 @@ class _ProviderProfileEditScreenState
                         ),
                       ),
                     ),
+
+                    // ---------------------------------------------------------
+                    // DELETE PROVIDER ROLE SECTION
+                    // ---------------------------------------------------------
+
+                    const SizedBox(height: 30),
+
+                    _sectionTitle(
+                      'Delete Provider Role',
+                      'Permanently remove your Provider account.',
+                    ),
+
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _kDanger.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: _kDanger,
+                                size: 25,
+                              ),
+                              SizedBox(width: 9),
+                              Expanded(
+                                child: Text(
+                                  'Delete Provider Role',
+                                  style: TextStyle(
+                                    color: _kDanger,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Deleting this role will permanently remove '
+                            'your Provider profile and related Provider data. '
+                            'Your Customer role will remain active if you '
+                            'have one.',
+                            style: TextStyle(
+                              color: _kTextSecondary,
+                              fontSize: 13.5,
+                              height: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: OutlinedButton.icon(
+                              onPressed: isDeletingRole || isLoading
+                                  ? null
+                                  : deleteProviderRole,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: _kDanger,
+                                side: const BorderSide(
+                                  color: _kDanger,
+                                  width: 1.3,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              icon: isDeletingRole
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: _kDanger,
+                                      ),
+                                    )
+                                  : const Icon(Icons.delete_outline),
+                              label: Text(
+                                isDeletingRole
+                                    ? 'Deleting...'
+                                    : 'Delete Provider Role',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                     const SizedBox(height: 16),
                   ],
                 ),

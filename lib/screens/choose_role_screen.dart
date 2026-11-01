@@ -40,14 +40,16 @@ class ChooseRoleScreen extends StatefulWidget {
 class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
   bool isLoading = false;
 
+  Future<void> selectRole(String role) async {
+    if (isLoading) return;
 
-Future<void> selectRole(String role) async {
-  if (isLoading) return;
+    final selectedRole = role.toUpperCase();
 
-  final selectedRole = role.toUpperCase();
+    setState(() => isLoading = true);
 
-  if (widget.isLoginFlow) {
-    // Save selected profile.
+    try {
+      // ================= LOGIN FLOW =================
+      if (widget.isLoginFlow) {
     Session.activeRole = selectedRole;
 
     debugPrint('ACTIVE ROLE: ${Session.activeRole}');
@@ -75,57 +77,65 @@ Future<void> selectRole(String role) async {
     return;
   }
 
-  setState(() => isLoading = true);
+        
 
-  try {
-    final success = await ApiService.registerUser(
-      name: widget.name,
-      email: widget.email,
-      password: widget.password,
-      phone: widget.phone,
-      role: selectedRole,
-    );
+      // ================= REGISTRATION FLOW =================
 
-    if (!mounted) return;
-
-    if (!success) {
-      _showMessage('Registration failed. Please try again.');
-      return;
-    }
-
-    Session.email = widget.email;
-    Session.roles = [selectedRole];
-    Session.activeRole = selectedRole;
-
-    if (selectedRole == 'CUSTOMER') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const CustomerHomeScreen(),
-        ),
-        (route) => false,
+      final success = await ApiService.registerUser(
+        name: widget.name,
+        email: widget.email,
+        password: widget.password,
+        phone: widget.phone,
+        role: selectedRole,
       );
-    } else if (selectedRole == 'PROVIDER') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ProviderProfileEditScreen(),
-        ),
-        (route) => false,
-      );
-    }
-  } catch (e) {
-    debugPrint('Role selection error: $e');
 
-    if (mounted) {
-      _showMessage('Something went wrong. Please try again.');
-    }
-  } finally {
-    if (mounted) {
-      setState(() => isLoading = false);
+      if (!mounted) return;
+
+      if (!success) {
+        _showMessage('Registration failed. Please try again.');
+        return;
+      }
+
+      Session.email = widget.email;
+      Session.roles = [selectedRole];
+      Session.activeRole = selectedRole;
+
+      debugPrint('REGISTERED EMAIL: ${Session.email}');
+      debugPrint('REGISTERED ROLE: ${Session.activeRole}');
+
+      if (selectedRole == 'CUSTOMER') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const CustomerHomeScreen(),
+          ),
+          (route) => false,
+        );
+      } else if (selectedRole == 'PROVIDER') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ProviderProfileEditScreen(),
+          ),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      debugPrint('Role selection error: $e');
+
+      if (mounted) {
+        _showMessage(
+          widget.isLoginFlow
+              ? 'Could not check your provider profile. Please try again.'
+              : 'Something went wrong. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
-}
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -293,8 +303,7 @@ Future<void> selectRole(String role) async {
                             ),
                           ),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (showCustomer)
                                 _roleCard(
@@ -302,8 +311,7 @@ Future<void> selectRole(String role) async {
                                   title: 'Customer',
                                   subtitle:
                                       'Find & book trusted services near you',
-                                  onTap: () =>
-                                      selectRole('CUSTOMER'),
+                                  onTap: () => selectRole('CUSTOMER'),
                                 ),
                               if (showCustomer && showProvider)
                                 const SizedBox(height: 18),
@@ -314,8 +322,7 @@ Future<void> selectRole(String role) async {
                                   subtitle:
                                       'Offer your skills and grow your business',
                                   dark: true,
-                                  onTap: () =>
-                                      selectRole('PROVIDER'),
+                                  onTap: () => selectRole('PROVIDER'),
                                 ),
                               if (isLoading) ...[
                                 const SizedBox(height: 28),
