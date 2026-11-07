@@ -168,7 +168,7 @@ class WelcomeScreen extends StatelessWidget {
                   28,
                   28,
                   28,
-                  24,
+                  20,
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -278,7 +278,7 @@ class WelcomeScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         const Text(
                           'Trusted by 500+ verified professionals',
                           textAlign: TextAlign.center,
@@ -286,6 +286,48 @@ class WelcomeScreen extends StatelessWidget {
                             fontSize: 12,
                             color: _kTextSecondary,
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        // ==================== Contact Details ====================
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(
+                              Icons.email_outlined,
+                              size: 13,
+                              color: _kTextSecondary,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'skilllink.supportteam@gmail.com',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: _kTextSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text(
+                                '•',
+                                style: TextStyle(color: _kTextSecondary),
+                              ),
+                            ),
+                            Icon(
+                              Icons.phone_outlined,
+                              size: 13,
+                              color: _kTextSecondary,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              '0702305523',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: _kTextSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
