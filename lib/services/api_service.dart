@@ -2007,4 +2007,113 @@ static Future<Map<String, dynamic>?> deleteUserRole({
   }
 }
 
+// ============================================================
+// FORGOT PASSWORD - SEND OTP
+// ============================================================
+
+static Future<Map<String, dynamic>?> requestPasswordResetOtp({
+  required String email,
+}) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/users/forgot-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email.trim()}),
+    ).timeout(const Duration(seconds: 20));
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    return {
+      'success': false,
+      'message': data['message'] ?? 'Unable to send OTP',
+    };
+  } catch (e) {
+    debugPrint('Forgot Password Error: $e');
+    return {
+      'success': false,
+      'message': 'Unable to connect to server',
+    };
+  }
+}
+
+// ============================================================
+// VERIFY RESET OTP
+// ============================================================
+
+static Future<Map<String, dynamic>?> verifyPasswordResetOtp({
+  required String email,
+  required String otp,
+}) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/users/verify-reset-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim(),
+        'otp': otp.trim(),
+      }),
+    ).timeout(const Duration(seconds: 20));
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    return {
+      'success': false,
+      'message': data['message'] ?? 'Invalid OTP',
+    };
+  } catch (e) {
+    debugPrint('OTP Verification Error: $e');
+    return {
+      'success': false,
+      'message': 'Unable to connect to server',
+    };
+  }
+}
+
+// ============================================================
+// RESET PASSWORD
+// ============================================================
+
+static Future<Map<String, dynamic>?> resetPassword({
+  required String email,
+  required String resetToken,
+  required String newPassword,
+}) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/users/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim(),
+        'resetToken': resetToken,
+        'newPassword': newPassword,
+      }),
+    ).timeout(const Duration(seconds: 20));
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    return {
+      'success': false,
+      'message': data['message'] ?? 'Password reset failed',
+    };
+  } catch (e) {
+    debugPrint('Reset Password Error: $e');
+    return {
+      'success': false,
+      'message': 'Unable to connect to server',
+    };
+  }
+}
+
 }

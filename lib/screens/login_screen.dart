@@ -7,8 +7,8 @@ import '../services/api_service.dart';
 import '../utils/session.dart';
 import 'choose_role_screen.dart';
 import 'register_screen.dart';
+import 'forgot_password_screen.dart';
 
-// Yellow & black palette (local to this screen)
 const Color _kYellow = Color(0xFFFFC400);
 const Color _kBlack = Color(0xFF0D0D0D);
 const Color _kBlackLight = Color(0xFF1E1E1E);
@@ -31,6 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
       TextEditingController();
 
   bool isLoading = false;
+  bool hidePassword = true;
 
   Future<void> login() async {
     if (isLoading) return;
@@ -48,23 +49,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     FocusScope.of(context).unfocus();
-
     setState(() => isLoading = true);
 
     try {
-      debugPrint('LOGIN: Starting API request');
-
-      // The timeout must also be configured inside ApiService
-      // if loginUser itself can wait indefinitely.
       final loginData = await ApiService.loginUser(
         email: email,
         password: password,
       ).timeout(const Duration(seconds: 20));
-
-      debugPrint(
-        'LOGIN: API request completed. '
-        'Success: ${loginData != null}',
-      );
 
       if (!mounted) return;
 
@@ -86,13 +77,9 @@ class _LoginScreenState extends State<LoginScreen> {
           token.isEmpty ||
           rawRoles is! List ||
           rawRoles.isEmpty) {
-        debugPrint('LOGIN: Invalid response format');
-
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Invalid login response. Please try again.',
-            ),
+            content: Text('Invalid login response. Please try again.'),
           ),
         );
         return;
@@ -102,22 +89,13 @@ class _LoginScreenState extends State<LoginScreen> {
           .map((role) => role.toString())
           .toList();
 
-      // Save the session.
       Session.email = email;
       Session.roles = roles;
       Session.token = token;
 
-      debugPrint('LOGIN: Session saved for $email');
-      debugPrint('LOGIN: Roles received: $roles');
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('customerEmail', email);
 
-      debugPrint('LOGIN: Local preferences saved');
-
-      // Navigate after successful authentication.
-      // FCM token registration is attempted separately so it
-      // cannot keep the user stuck on the login screen.
       if (!mounted) return;
 
       Navigator.push(
@@ -134,8 +112,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
-      // Register the device token without blocking navigation.
       _registerFcmToken();
+
     } on Exception catch (e, stackTrace) {
       debugPrint('LOGIN ERROR: $e');
       debugPrintStack(stackTrace: stackTrace);
@@ -149,6 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -158,32 +137,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _registerFcmToken() async {
     try {
-      debugPrint('FCM: Getting device token');
-
       final fcmToken =
           await FirebaseMessaging.instance.getToken().timeout(
-                const Duration(seconds: 10),
-              );
+        const Duration(seconds: 10),
+      );
 
-      if (fcmToken == null || fcmToken.isEmpty) {
-        debugPrint('FCM: Token unavailable');
-        return;
-      }
+      if (fcmToken == null || fcmToken.isEmpty) return;
 
-      debugPrint('FCM: Token obtained; length=${fcmToken.length}');
-
-      final saved = await ApiService.saveFcmToken(fcmToken)
-          .timeout(const Duration(seconds: 10));
-
-      debugPrint('FCM: Token saved successfully=$saved');
+      await ApiService.saveFcmToken(fcmToken).timeout(
+        const Duration(seconds: 10),
+      );
     } catch (e) {
       debugPrint('FCM REGISTRATION ERROR: $e');
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // UI helpers
-  // ---------------------------------------------------------------------------
 
   InputDecoration _fieldDecoration({
     required String label,
@@ -216,7 +183,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: _kYellow, width: 2),
+        borderSide: const BorderSide(
+          color: _kYellow,
+          width: 2,
+        ),
       ),
     );
   }
@@ -264,7 +234,6 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Back button
                   Container(
                     width: 42,
                     height: 42,
@@ -277,7 +246,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: IconButton(
                       onPressed: () => Navigator.maybePop(context),
-                      tooltip: 'Back',
                       padding: EdgeInsets.zero,
                       icon: const Icon(
                         Icons.arrow_back_rounded,
@@ -369,7 +337,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           TextField(
             controller: passwordController,
-            obscureText: true,
+            obscureText: hidePassword,
             cursorColor: _kBlack,
             style: const TextStyle(
               fontSize: 15,
@@ -379,13 +347,60 @@ class _LoginScreenState extends State<LoginScreen> {
             decoration: _fieldDecoration(
               label: 'Password',
               icon: Icons.lock_outline,
+            ).copyWith(
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() => hidePassword = !hidePassword);
+                },
+                icon: Icon(
+                  hidePassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: _kTextSecondary,
+                ),
+              ),
             ),
             onSubmitted: (_) {
               if (!isLoading) login();
             },
           ),
 
-          const SizedBox(height: 28),
+          // FORGOT PASSWORD LINK
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: isLoading
+                  ? null
+                  : () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const ForgotPasswordScreen(),
+                        ),
+                      );
+                    },
+              style: TextButton.styleFrom(
+                foregroundColor: _kBlack,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 8,
+                ),
+              ),
+              child: const Text(
+                'Forgot Password?',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  decoration: TextDecoration.underline,
+                  decorationColor: _kYellow,
+                  decorationThickness: 2.5,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
 
           SizedBox(
             width: double.infinity,
@@ -394,14 +409,17 @@ class _LoginScreenState extends State<LoginScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _kYellow,
                 foregroundColor: _kBlack,
-                disabledBackgroundColor: _kYellow.withValues(alpha: 0.65),
+                disabledBackgroundColor:
+                    _kYellow.withValues(alpha: 0.65),
                 disabledForegroundColor: _kBlack,
                 elevation: 0,
                 shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               onPressed: isLoading ? null : login,
               child: isLoading
@@ -433,7 +451,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const RegisterScreen(),
+                          builder: (context) =>
+                              const RegisterScreen(),
                         ),
                       );
                     },
