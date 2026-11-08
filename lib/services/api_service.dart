@@ -12,8 +12,8 @@ import 'package:http_parser/http_parser.dart';
 import '../utils/session.dart';
 
 class ApiService {
-  //static const String baseUrl = 'http://10.0.2.2:8080';
-  static const String baseUrl = 'http://10.92.29.41:8080';
+  static const String baseUrl =
+    'https://skilllink-backend-7cqs.onrender.com';
   // ============================================================
   // TEST CONNECTION
   // ============================================================
@@ -515,15 +515,14 @@ class ApiService {
     );
 
     try {
-      final uri = Uri(
-        scheme: 'http',
-        host: '10.0.2.2',
-        port: 8080,
-        path: '/api/services/update/$id',
+      final uri = Uri.parse(
+        '$baseUrl/api/services/update/$id',
+      ).replace(
         queryParameters: {
           'email': email,
         },
       );
+            
 
       debugPrint(
         'URI: $uri',
