@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
 import '../../utils/session.dart';
-import '../choose_role_screen.dart';
 
 // Yellow & black palette (local to this screen)
 const Color _kYellow = Color(0xFFFFC400);
@@ -31,31 +30,6 @@ class _ProviderBookingsScreenState
   void initState() {
     super.initState();
     loadBookings();
-  }
-
-  // Back arrow / system back.
-  // If there is a previous screen (Choose Role), just pop to it so all
-  // its data is kept. Otherwise open a fresh Choose Role screen.
-  void _goBack() {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    } else {
-      _openFreshChooseRole();
-    }
-  }
-
-  void _openFreshChooseRole() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => const ChooseRoleScreen(
-          name: '',
-          email: '',
-          password: '',
-          phone: '',
-        ),
-      ),
-      (route) => false,
-    );
   }
 
   Future<void> loadBookings() async {
@@ -159,362 +133,345 @@ class _ProviderBookingsScreenState
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      // If there is a previous screen, system back pops normally.
-      // If not, intercept it so the app doesn't close.
-      canPop: Navigator.of(context).canPop(),
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) _openFreshChooseRole();
-      },
-      child: Scaffold(
-        backgroundColor: _kBackground,
-        appBar: AppBar(
-          backgroundColor: _kBlack,
-          foregroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: false,
-          systemOverlayStyle: SystemUiOverlayStyle.light,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-          ),
-          leading: IconButton(
-            tooltip: 'Back',
-            onPressed: _goBack,
-            icon: const Icon(
-              Icons.arrow_back_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-          title: const Text(
-            'My Bookings',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: -0.3,
-            ),
+    return Scaffold(
+      backgroundColor: _kBackground,
+      appBar: AppBar(
+        backgroundColor: _kBlack,
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
           ),
         ),
-        body: isLoading
-            ? const Center(
-                child: CircularProgressIndicator(
+        title: const Text(
+          'My Bookings',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.3,
+          ),
+        ),
+      ),
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: _kBlack,
+              ),
+            )
+          : bookings.isEmpty
+              ? _buildEmptyState()
+              : RefreshIndicator(
                   color: _kBlack,
-                ),
-              )
-            : bookings.isEmpty
-                ? _buildEmptyState()
-                : RefreshIndicator(
-                    color: _kBlack,
-                    backgroundColor: _kYellow,
-                    onRefresh: loadBookings,
-                    child: ListView.separated(
-                      padding:
-                          const EdgeInsets.all(16),
-                      itemCount: bookings.length,
-                      separatorBuilder:
-                          (_, _) =>
-                              const SizedBox(
-                        height: 16,
-                      ),
-                      itemBuilder:
-                          (context, index) {
-                        final booking =
-                            bookings[index];
+                  backgroundColor: _kYellow,
+                  onRefresh: loadBookings,
+                  child: ListView.separated(
+                    padding:
+                        const EdgeInsets.all(16),
+                    itemCount: bookings.length,
+                    separatorBuilder:
+                        (_, _) =>
+                            const SizedBox(
+                      height: 16,
+                    ),
+                    itemBuilder:
+                        (context, index) {
+                      final booking =
+                          bookings[index];
 
-                        final customer =
-                            booking['customer'];
+                      final customer =
+                          booking['customer'];
 
-                        final service =
-                            booking['service'];
+                      final service =
+                          booking['service'];
 
-                        final customerName =
-                            customer?['name']
-                                    ?.toString() ??
-                                'Unknown Customer';
+                      final customerName =
+                          customer?['name']
+                                  ?.toString() ??
+                              'Unknown Customer';
 
-                        final serviceName =
-                            service?['name']
-                                    ?.toString() ??
-                                'Unknown Service';
+                      final serviceName =
+                          service?['name']
+                                  ?.toString() ??
+                              'Unknown Service';
 
-                        final date =
-                            booking[
-                                        'requestedDate']
-                                    ?.toString() ??
-                                '';
+                      final date =
+                          booking[
+                                      'requestedDate']
+                                  ?.toString() ??
+                              '';
 
-                        final time =
-                            booking[
-                                        'requestedTime']
-                                    ?.toString() ??
-                                '';
+                      final time =
+                          booking[
+                                      'requestedTime']
+                                  ?.toString() ??
+                              '';
 
-                        final address =
-                            booking['address']
-                                    ?.toString() ??
-                                '';
+                      final address =
+                          booking['address']
+                                  ?.toString() ??
+                              '';
 
-                        final description =
-                            booking['description']
-                                    ?.toString() ??
-                                '';
+                      final description =
+                          booking['description']
+                                  ?.toString() ??
+                              '';
 
-                        final status =
-                            booking['status']
-                                    ?.toString() ??
-                                'ACCEPTED';
+                      final status =
+                          booking['status']
+                                  ?.toString() ??
+                              'ACCEPTED';
 
-                        final requestId =
-                            int.tryParse(
-                          booking['id']
-                              .toString(),
-                        );
+                      final requestId =
+                          int.tryParse(
+                        booking['id']
+                            .toString(),
+                      );
 
-                        final displayStatus =
-                            status.isNotEmpty
-                                ? status[0]
-                                        .toUpperCase() +
-                                    status
-                                        .substring(1)
-                                        .toLowerCase()
-                                : 'Accepted';
+                      final displayStatus =
+                          status.isNotEmpty
+                              ? status[0]
+                                      .toUpperCase() +
+                                  status
+                                      .substring(1)
+                                      .toLowerCase()
+                              : 'Accepted';
 
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius:
-                                BorderRadius.circular(22),
-                            border:
-                                Border.all(color: _kBorder),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black
-                                    .withValues(alpha: 0.04),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.all(
-                              18,
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius:
+                              BorderRadius.circular(22),
+                          border:
+                              Border.all(color: _kBorder),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black
+                                  .withValues(alpha: 0.04),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
                             ),
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment
-                                      .start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration:
-                                          const BoxDecoration(
-                                        color: _kYellow,
-                                        shape:
-                                            BoxShape.circle,
-                                      ),
-                                      child:
-                                          const Icon(
-                                        Icons
-                                            .person_rounded,
+                          ],
+                        ),
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.all(
+                            18,
+                          ),
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment
+                                    .start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration:
+                                        const BoxDecoration(
+                                      color: _kYellow,
+                                      shape:
+                                          BoxShape.circle,
+                                    ),
+                                    child:
+                                        const Icon(
+                                      Icons
+                                          .person_rounded,
+                                      color: _kBlack,
+                                    ),
+                                  ),
+                                  const SizedBox(
+                                    width: 12,
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      customerName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow
+                                          .ellipsis,
+                                      style:
+                                          const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight:
+                                            FontWeight
+                                                .w800,
+                                        letterSpacing: -0.3,
                                         color: _kBlack,
                                       ),
                                     ),
-                                    const SizedBox(
-                                      width: 12,
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        customerName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow
-                                            .ellipsis,
-                                        style:
-                                            const TextStyle(
-                                          fontSize: 17,
-                                          fontWeight:
-                                              FontWeight
-                                                  .w800,
-                                          letterSpacing: -0.3,
-                                          color: _kBlack,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    _StatusChip(
-                                      status: status,
-                                      label: displayStatus,
-                                    ),
-                                  ],
-                                ),
-
-                                const Divider(
-                                  height: 28,
-                                  color: Color(0xFFEFEFEA),
-                                ),
-
-                                Container(
-                                  padding: const EdgeInsets
-                                      .symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: _kBlack,
-                                    borderRadius:
-                                        BorderRadius.circular(
-                                      10,
-                                    ),
+                                  const SizedBox(width: 8),
+                                  _StatusChip(
+                                    status: status,
+                                    label: displayStatus,
                                   ),
-                                  child: Text(
-                                    serviceName,
-                                    style:
-                                        const TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight:
-                                          FontWeight.w700,
-                                      color: _kYellow,
-                                    ),
+                                ],
+                              ),
+
+                              const Divider(
+                                height: 28,
+                                color: Color(0xFFEFEFEA),
+                              ),
+
+                              Container(
+                                padding: const EdgeInsets
+                                    .symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _kBlack,
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    10,
                                   ),
                                 ),
+                                child: Text(
+                                  serviceName,
+                                  style:
+                                      const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight:
+                                        FontWeight.w700,
+                                    color: _kYellow,
+                                  ),
+                                ),
+                              ),
 
+                              const SizedBox(
+                                height: 14,
+                              ),
+
+                              _iconRow(
+                                Icons
+                                    .calendar_today_rounded,
+                                formatDate(date),
+                              ),
+
+                              const SizedBox(
+                                height: 10,
+                              ),
+
+                              _iconRow(
+                                Icons
+                                    .access_time_rounded,
+                                formatTime(time),
+                              ),
+
+                              const SizedBox(
+                                height: 10,
+                              ),
+
+                              _iconRow(
+                                Icons
+                                    .location_on_rounded,
+                                address,
+                              ),
+
+                              if (description
+                                  .isNotEmpty) ...[
                                 const SizedBox(
                                   height: 14,
                                 ),
 
-                                _iconRow(
-                                  Icons
-                                      .calendar_today_rounded,
-                                  formatDate(date),
-                                ),
-
-                                const SizedBox(
-                                  height: 10,
-                                ),
-
-                                _iconRow(
-                                  Icons
-                                      .access_time_rounded,
-                                  formatTime(time),
-                                ),
-
-                                const SizedBox(
-                                  height: 10,
-                                ),
-
-                                _iconRow(
-                                  Icons
-                                      .location_on_rounded,
-                                  address,
-                                ),
-
-                                if (description
-                                    .isNotEmpty) ...[
-                                  const SizedBox(
-                                    height: 14,
+                                Container(
+                                  width: double.infinity,
+                                  padding:
+                                      const EdgeInsets.all(
+                                    12,
                                   ),
-
-                                  Container(
-                                    width: double.infinity,
-                                    padding:
-                                        const EdgeInsets.all(
-                                      12,
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFFF6F6F2,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(
-                                        0xFFF6F6F2,
-                                      ),
-                                      borderRadius:
-                                          BorderRadius.circular(
-                                        14,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      description,
-                                      style:
-                                          const TextStyle(
-                                        fontSize: 14,
-                                        height: 1.4,
-                                        color:
-                                            _kTextSecondary,
-                                      ),
+                                    borderRadius:
+                                        BorderRadius.circular(
+                                      14,
                                     ),
                                   ),
-                                ],
-
-                                const SizedBox(
-                                  height: 18,
-                                ),
-
-                                if (status ==
-                                    'ACCEPTED')
-                                  SizedBox(
-                                    width:
-                                        double.infinity,
-                                    height: 48,
-                                    child:
-                                        ElevatedButton
-                                            .icon(
-                                      onPressed:
-                                          requestId ==
-                                                  null
-                                              ? null
-                                              : () {
-                                                  completeBooking(
-                                                    requestId,
-                                                  );
-                                                },
-                                      icon: const Icon(
-                                        Icons
-                                            .check_circle_rounded,
-                                      ),
-                                      label: const Text(
-                                        'Mark as Completed',
-                                      ),
-                                      style:
-                                          ElevatedButton
-                                              .styleFrom(
-                                        backgroundColor:
-                                            _kYellow,
-                                        foregroundColor:
-                                            _kBlack,
-                                        elevation: 0,
-                                        shadowColor:
-                                            Colors
-                                                .transparent,
-                                        shape:
-                                            RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius
-                                                  .circular(
-                                            14,
-                                          ),
-                                        ),
-                                        textStyle:
-                                            const TextStyle(
-                                          fontWeight:
-                                              FontWeight
-                                                  .w800,
-                                        ),
-                                      ),
+                                  child: Text(
+                                    description,
+                                    style:
+                                        const TextStyle(
+                                      fontSize: 14,
+                                      height: 1.4,
+                                      color:
+                                          _kTextSecondary,
                                     ),
                                   ),
+                                ),
                               ],
-                            ),
+
+                              const SizedBox(
+                                height: 18,
+                              ),
+
+                              if (status ==
+                                  'ACCEPTED')
+                                SizedBox(
+                                  width:
+                                      double.infinity,
+                                  height: 48,
+                                  child:
+                                      ElevatedButton
+                                          .icon(
+                                    onPressed:
+                                        requestId ==
+                                                null
+                                            ? null
+                                            : () {
+                                                completeBooking(
+                                                  requestId,
+                                                );
+                                              },
+                                    icon: const Icon(
+                                      Icons
+                                          .check_circle_rounded,
+                                    ),
+                                    label: const Text(
+                                      'Mark as Completed',
+                                    ),
+                                    style:
+                                        ElevatedButton
+                                            .styleFrom(
+                                      backgroundColor:
+                                          _kYellow,
+                                      foregroundColor:
+                                          _kBlack,
+                                      elevation: 0,
+                                      shadowColor:
+                                          Colors
+                                              .transparent,
+                                      shape:
+                                          RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius
+                                                .circular(
+                                          14,
+                                        ),
+                                      ),
+                                      textStyle:
+                                          const TextStyle(
+                                        fontWeight:
+                                            FontWeight
+                                                .w800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
-      ),
+                ),
     );
   }
 
