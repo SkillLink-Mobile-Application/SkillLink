@@ -288,7 +288,7 @@ class WelcomeScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        // ==================== Contact Details ====================
+                                                // ==================== Contact Details ====================
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
@@ -329,8 +329,12 @@ class WelcomeScreen extends StatelessWidget {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 10),
+                        // ==================== Developer Credit ====================
+                        const _DeveloperCredit(),
                       ],
                     ),
+                    
                   ],
                 ),
               ),
@@ -378,6 +382,43 @@ class _WelcomeStat extends StatelessWidget {
   }
 }
 
+class _DeveloperCredit extends StatelessWidget {
+  const _DeveloperCredit();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 5,
+          height: 5,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: _kYellow,
+          ),
+        ),
+        const SizedBox(width: 6),
+        const Text(
+          'Developed by ',
+          style: TextStyle(
+            fontSize: 11,
+            color: _kTextSecondary,
+          ),
+        ),
+        const Text(
+          'Charuni Liyanage',
+          style: TextStyle(
+            fontSize: 11,
+            color: _kBlack,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _WelcomeStatDivider extends StatelessWidget {
   const _WelcomeStatDivider();
 
@@ -389,4 +430,6 @@ class _WelcomeStatDivider extends StatelessWidget {
       color: Colors.white.withValues(alpha: 0.14),
     );
   }
+
+  
 }
