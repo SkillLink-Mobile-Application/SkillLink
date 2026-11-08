@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
+import '../choose_role_screen.dart';
 import 'become_provider_screen.dart';
 import 'customer_bookings_screen.dart';
 import 'customer_profile_screen.dart';
@@ -133,6 +134,33 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     if (mounted) await loadUnreadNotificationCount();
   }
 
+  // Back arrow / system back when there is nothing to pop.
+  // If the Choose Role screen is still in the stack we simply pop to it
+  // (keeps all its data). Otherwise we open a fresh Choose Role screen.
+  void _goBack() {
+    FocusScope.of(context).unfocus();
+
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      _openFreshChooseRole();
+    }
+  }
+
+  void _openFreshChooseRole() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const ChooseRoleScreen(
+          name: '',
+          email: '',
+          password: '',
+          phone: '',
+        ),
+      ),
+      (route) => false,
+    );
+  }
+
   void openService(String serviceName) =>
       _open(ProviderListScreen(serviceName: serviceName));
 
@@ -175,55 +203,65 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     final services = filteredServices;
     final isSearching = searchQuery.trim().isNotEmpty;
     final showProviderPromo = !isSearching && selectedCategory == _kAll;
+    final hasPreviousScreen = Navigator.of(context).canPop();
 
-    return Scaffold(
-      backgroundColor: _kBackground,
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: RefreshIndicator(
-          color: _kBlack,
-          backgroundColor: _kYellow,
-          edgeOffset: 120,
-          onRefresh: loadUnreadNotificationCount,
-          child: CustomScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(child: _buildHeader()),
-              SliverToBoxAdapter(child: _buildCategorySelector()),
-              SliverToBoxAdapter(child: _buildSectionTitle(services.length)),
-              if (services.isEmpty)
-                SliverToBoxAdapter(child: _buildEmptyState())
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      mainAxisExtent: 146,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildServiceCard(services[index]),
-                      childCount: services.length,
+    return PopScope(
+      // If there is a previous screen, the system back pops normally.
+      // If not, we intercept it so the app doesn't close.
+      canPop: hasPreviousScreen,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _openFreshChooseRole();
+      },
+      child: Scaffold(
+        backgroundColor: _kBackground,
+        body: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.light,
+          child: RefreshIndicator(
+            color: _kBlack,
+            backgroundColor: _kYellow,
+            edgeOffset: 120,
+            onRefresh: loadUnreadNotificationCount,
+            child: CustomScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(child: _buildHeader()),
+                SliverToBoxAdapter(child: _buildCategorySelector()),
+                SliverToBoxAdapter(child: _buildSectionTitle(services.length)),
+                if (services.isEmpty)
+                  SliverToBoxAdapter(child: _buildEmptyState())
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        mainAxisExtent: 146,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildServiceCard(services[index]),
+                        childCount: services.length,
+                      ),
                     ),
                   ),
-                ),
-              if (showProviderPromo)
-                SliverToBoxAdapter(child: _buildProviderPromo()),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            ],
+                if (showProviderPromo)
+                  SliverToBoxAdapter(child: _buildProviderPromo()),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              ],
+            ),
           ),
         ),
+        bottomNavigationBar: _buildBottomNav(),
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
   // ----------------------------------------------------------
-  // HEADER (brand, notifications, headline, search)
+  // HEADER (back arrow, brand, notifications, headline, search)
   // ----------------------------------------------------------
 
   Widget _buildHeader() {
@@ -244,6 +282,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             children: [
               Row(
                 children: [
+                  _buildBackButton(),
+                  const SizedBox(width: 12),
                   Container(
                     width: 42,
                     height: 42,
@@ -310,6 +350,30 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               const SizedBox(height: 18),
               _buildSearchField(),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackButton() {
+    return Semantics(
+      button: true,
+      label: 'Back',
+      child: Material(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _goBack,
+          child: const SizedBox(
+            width: 38,
+            height: 38,
+            child: Icon(
+              Icons.arrow_back_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
         ),
       ),
