@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -9,7 +10,7 @@ import 'notifications_screen.dart';
 import 'provider_list_screen.dart';
 
 // ============================================================
-// DESIGN TOKENS (shared with bookings / requests screens)
+// DESIGN TOKENS
 // ============================================================
 
 const Color _kYellow = Color(0xFFFFC400);
@@ -19,65 +20,28 @@ const Color _kTextSecondary = Color(0xFF6B6B6B);
 const Color _kBorder = Color(0xFFE4E4DE);
 
 // ============================================================
-// DATA
+// DYNAMIC SERVICE MODEL
 // ============================================================
 
 class _Service {
   final String name;
-  final String subtitle;
-  final String category;
-  final IconData icon;
-  final double rating;
+  final String description;
+  final String? icon;
+  final String? imageUrl;
 
-  const _Service(
-    this.name,
-    this.subtitle,
-    this.category,
+  const _Service({
+    required this.name,
+    required this.description,
     this.icon,
-    this.rating,
-  );
+    this.imageUrl,
+  });
+
+  bool get hasImage =>
+      imageUrl != null && imageUrl!.trim().isNotEmpty;
+
+  bool get hasIcon =>
+      icon != null && icon!.trim().isNotEmpty;
 }
-
-const String _kAll = 'All';
-const String _kPopular = 'Top rated';
-const String _kHome = 'Home & vehicle';
-const String _kTech = 'Tech & gadgets';
-const String _kPersonal = 'Personal & events';
-
-const List<String> _kCategories = [
-  _kAll,
-  _kPopular,
-  _kHome,
-  _kTech,
-  _kPersonal,
-];
-
-const List<_Service> _kServices = [
-  _Service('Electrician', 'Electrical work', _kHome, Icons.electrical_services_rounded, 4.9),
-  _Service('Plumber', 'Pipes & taps', _kHome, Icons.plumbing_rounded, 4.8),
-  _Service('Carpenter', 'Furniture & wood', _kHome, Icons.carpenter_rounded, 4.7),
-  _Service('Mason', 'Building work', _kHome, Icons.foundation_rounded, 4.6),
-  _Service('Mechanic', 'Vehicle repair', _kHome, Icons.car_repair_rounded, 4.8),
-  _Service('AC Technician', 'Cooling & AC', _kHome, Icons.ac_unit_rounded, 4.9),
-  _Service('Painter', 'Painting work', _kHome, Icons.format_paint_rounded, 4.7),
-  _Service('Cleaner', 'Home cleaning', _kHome, Icons.cleaning_services_rounded, 4.9),
-  _Service('Gardener', 'Garden care', _kHome, Icons.yard_rounded, 4.6),
-  _Service('Locksmith', 'Locks & keys', _kHome, Icons.lock_rounded, 4.8),
-  _Service('Roofer', 'Roof repairs', _kHome, Icons.roofing_rounded, 4.5),
-  _Service('Pest Control', 'Pest treatment', _kHome, Icons.pest_control_rounded, 4.8),
-  _Service('Vehicle Electrician', 'Vehicle electronics', _kHome, Icons.battery_charging_full_rounded, 4.8),
-  _Service('Computer Technician', 'Computer repair', _kTech, Icons.computer_rounded, 4.9),
-  _Service('Phone Repair', 'Mobile devices', _kTech, Icons.phone_android_rounded, 4.7),
-  _Service('Washing Machine Repair', 'Appliance repair', _kTech, Icons.local_laundry_service_rounded, 4.7),
-  _Service('Refrigerator Repair', 'Fridge repair', _kTech, Icons.kitchen_rounded, 4.7),
-  _Service('CCTV Technician', 'Security systems', _kTech, Icons.videocam_rounded, 4.9),
-  _Service('Solar Technician', 'Solar systems', _kTech, Icons.solar_power_rounded, 5.0),
-  _Service('Hairdresser', 'Hair styling', _kPersonal, Icons.content_cut_rounded, 4.8),
-  _Service('Tailor', 'Clothing alterations', _kPersonal, Icons.checkroom_rounded, 4.6),
-  _Service('Makeup Artist', 'Beauty services', _kPersonal, Icons.face_retouching_natural_rounded, 4.9),
-  _Service('Photographer', 'Photo & events', _kPersonal, Icons.camera_alt_rounded, 4.9),
-  _Service('Tutor', 'Learning support', _kPersonal, Icons.school_rounded, 4.9),
-];
 
 // ============================================================
 // SCREEN
@@ -87,19 +51,27 @@ class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({super.key});
 
   @override
-  State<CustomerHomeScreen> createState() => _CustomerHomeScreenState();
+  State<CustomerHomeScreen> createState() =>
+      _CustomerHomeScreenState();
 }
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   int unreadNotificationCount = 0;
-  String searchQuery = '';
-  String selectedCategory = _kAll;
 
-  final TextEditingController searchController = TextEditingController();
+  String searchQuery = '';
+
+  List<_Service> services = [];
+
+  bool isLoadingCategories = true;
+  String? categoryLoadError;
+
+  final TextEditingController searchController =
+      TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    loadCategories();
     loadUnreadNotificationCount();
   }
 
@@ -109,72 +81,148 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     super.dispose();
   }
 
-  // ----------------------------------------------------------
-  // DATA & NAVIGATION
-  // ----------------------------------------------------------
+  // ==========================================================
+  // LOAD CATEGORIES FROM DATABASE
+  // ==========================================================
 
-  Future<void> loadUnreadNotificationCount() async {
+  Future<void> loadCategories() async {
+    if (mounted && services.isEmpty) {
+      setState(() {
+        isLoadingCategories = true;
+        categoryLoadError = null;
+      });
+    }
+
     try {
-      final count = await ApiService.getUnreadNotificationCount();
+      final data = await ApiService.getCategories();
+
+      final loadedServices = data
+          .whereType<Map>()
+          .map((item) {
+        final name = (item['name'] ?? '').toString().trim();
+
+        if (name.isEmpty) return null;
+
+        final description =
+            (item['description'] ?? '').toString().trim();
+
+        final icon = (item['icon'] ?? '').toString().trim();
+
+        final imageUrl =
+            (item['imageUrl'] ?? '').toString().trim();
+
+        return _Service(
+          name: name,
+          description: description,
+          icon: icon.isEmpty ? null : icon,
+          imageUrl: imageUrl.isEmpty ? null : imageUrl,
+        );
+      })
+          .whereType<_Service>()
+          .toList();
+
       if (!mounted) return;
-      setState(() => unreadNotificationCount = count);
-    } catch (_) {
-      // The badge is optional; fail silently.
+
+      setState(() {
+        services = loadedServices;
+        isLoadingCategories = false;
+
+        categoryLoadError = loadedServices.isEmpty
+            ? 'No active service categories are available right now.'
+            : null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingCategories = false;
+        categoryLoadError =
+            'Could not load service categories. Please try again.';
+      });
     }
   }
 
-  // Opens a screen, then refreshes the badge when the user comes back.
+  // ==========================================================
+  // REFRESH
+  // ==========================================================
+
+  Future<void> _refreshDashboard() async {
+    await Future.wait([
+      loadCategories(),
+      loadUnreadNotificationCount(),
+    ]);
+  }
+
+  Future<void> loadUnreadNotificationCount() async {
+    try {
+      final count =
+          await ApiService.getUnreadNotificationCount();
+
+      if (!mounted) return;
+
+      setState(() {
+        unreadNotificationCount = count;
+      });
+    } catch (_) {
+      // Notification badge is optional.
+    }
+  }
+
+  // ==========================================================
+  // NAVIGATION
+  // ==========================================================
+
   Future<void> _open(Widget screen) async {
     FocusScope.of(context).unfocus();
+
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => screen),
     );
-    if (mounted) await loadUnreadNotificationCount();
+
+    if (mounted) {
+      await loadUnreadNotificationCount();
+    }
   }
 
-  void openService(String serviceName) =>
-      _open(ProviderListScreen(serviceName: serviceName));
+  void openService(String serviceName) {
+    _open(ProviderListScreen(serviceName: serviceName));
+  }
+
+  // ==========================================================
+  // SEARCH
+  // ==========================================================
 
   void clearSearch() {
     searchController.clear();
-    setState(() => searchQuery = '');
-  }
 
-  void resetFilters() {
-    searchController.clear();
     setState(() {
       searchQuery = '';
-      selectedCategory = _kAll;
     });
   }
 
   List<_Service> get filteredServices {
     final query = searchQuery.trim().toLowerCase();
 
-    return _kServices.where((service) {
-      final matchesQuery = query.isEmpty ||
-          service.name.toLowerCase().contains(query) ||
-          service.subtitle.toLowerCase().contains(query) ||
-          service.category.toLowerCase().contains(query);
+    if (query.isEmpty) return services;
 
-      final matchesCategory = selectedCategory == _kAll ||
-          (selectedCategory == _kPopular && service.rating >= 4.9) ||
-          service.category == selectedCategory;
-
-      return matchesQuery && matchesCategory;
+    return services.where((service) {
+      return service.name.toLowerCase().contains(query) ||
+          service.description.toLowerCase().contains(query);
     }).toList();
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // BUILD
-  // ----------------------------------------------------------
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
-    final services = filteredServices;
+    final displayedServices = filteredServices;
+
     final isSearching = searchQuery.trim().isNotEmpty;
-    final showProviderPromo = !isSearching && selectedCategory == _kAll;
+
+    final showProviderPromo = !isSearching;
 
     return Scaffold(
       backgroundColor: _kBackground,
@@ -184,19 +232,46 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           color: _kBlack,
           backgroundColor: _kYellow,
           edgeOffset: 120,
-          onRefresh: loadUnreadNotificationCount,
+          onRefresh: _refreshDashboard,
           child: CustomScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            keyboardDismissBehavior:
+                ScrollViewKeyboardDismissBehavior.onDrag,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SliverToBoxAdapter(child: _buildHeader()),
-              SliverToBoxAdapter(child: _buildCategorySelector()),
-              SliverToBoxAdapter(child: _buildSectionTitle(services.length)),
-              if (services.isEmpty)
-                SliverToBoxAdapter(child: _buildEmptyState())
+              SliverToBoxAdapter(
+                child: _buildHeader(),
+              ),
+
+              SliverToBoxAdapter(
+                child: _buildSectionTitle(displayedServices.length),
+              ),
+
+              if (isLoadingCategories && services.isEmpty)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: _kBlack,
+                        strokeWidth: 2.5,
+                      ),
+                    ),
+                  ),
+                )
+              else if (categoryLoadError != null &&
+                  services.isEmpty)
+                SliverToBoxAdapter(
+                  child: _buildCategoryError(),
+                )
+              else if (displayedServices.isEmpty)
+                SliverToBoxAdapter(
+                  child: _buildEmptyState(),
+                )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                  ),
                   sliver: SliverGrid(
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
@@ -206,14 +281,24 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       mainAxisExtent: 146,
                     ),
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildServiceCard(services[index]),
-                      childCount: services.length,
+                      (context, index) {
+                        return _buildServiceCard(
+                          displayedServices[index],
+                        );
+                      },
+                      childCount: displayedServices.length,
                     ),
                   ),
                 ),
+
               if (showProviderPromo)
-                SliverToBoxAdapter(child: _buildProviderPromo()),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                SliverToBoxAdapter(
+                  child: _buildProviderPromo(),
+                ),
+
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 24),
+              ),
             ],
           ),
         ),
@@ -222,9 +307,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // ----------------------------------------------------------
-  // HEADER (brand, notifications, headline, search)
-  // ----------------------------------------------------------
+  // ==========================================================
+  // HEADER
+  // ==========================================================
 
   Widget _buildHeader() {
     return Container(
@@ -238,7 +323,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
+          padding: const EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            22,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -257,7 +347,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       size: 22,
                     ),
                   ),
+
                   const SizedBox(width: 12),
+
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,10 +385,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       ],
                     ),
                   ),
+
                   _buildNotificationButton(),
                 ],
               ),
+
               const SizedBox(height: 22),
+
               const Text(
                 'Who do you need\ntoday?',
                 style: TextStyle(
@@ -307,7 +402,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   letterSpacing: -0.8,
                 ),
               ),
+
               const SizedBox(height: 18),
+
               _buildSearchField(),
             ],
           ),
@@ -315,6 +412,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       ),
     );
   }
+
+  // ==========================================================
+  // NOTIFICATIONS
+  // ==========================================================
 
   Widget _buildNotificationButton() {
     final label = unreadNotificationCount > 99
@@ -346,18 +447,27 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             ),
           ),
+
           if (unreadNotificationCount > 0)
             Positioned(
               right: -4,
               top: -4,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5,
+                ),
+                constraints: const BoxConstraints(
+                  minWidth: 20,
+                  minHeight: 20,
+                ),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: _kYellow,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _kBlack, width: 2),
+                  border: Border.all(
+                    color: _kBlack,
+                    width: 2,
+                  ),
                 ),
                 child: Text(
                   label,
@@ -374,12 +484,22 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
+  // ==========================================================
+  // SEARCH FIELD
+  // ==========================================================
+
   Widget _buildSearchField() {
     return TextField(
       controller: searchController,
       textInputAction: TextInputAction.search,
-      onChanged: (value) => setState(() => searchQuery = value),
-      onSubmitted: (_) => FocusScope.of(context).unfocus(),
+      onChanged: (value) {
+        setState(() {
+          searchQuery = value;
+        });
+      },
+      onSubmitted: (_) {
+        FocusScope.of(context).unfocus();
+      },
       style: const TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w600,
@@ -387,13 +507,17 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       ),
       cursorColor: _kBlack,
       decoration: InputDecoration(
-        hintText: 'Try "plumber" or "AC repair"',
+        hintText: 'Search services...',
         hintStyle: const TextStyle(
           fontSize: 14.5,
           fontWeight: FontWeight.w400,
           color: _kTextSecondary,
         ),
-        prefixIcon: const Icon(Icons.search_rounded, color: _kBlack, size: 22),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: _kBlack,
+          size: 22,
+        ),
         suffixIcon: searchQuery.isNotEmpty
             ? IconButton(
                 tooltip: 'Clear search',
@@ -407,69 +531,42 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             : null,
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: _kYellow, width: 2),
+          borderSide: const BorderSide(
+            color: _kYellow,
+            width: 2,
+          ),
         ),
       ),
     );
   }
 
-  // ----------------------------------------------------------
-  // CATEGORIES
-  // ----------------------------------------------------------
-
-  Widget _buildCategorySelector() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 18),
-      child: SizedBox(
-        height: 44,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: _kCategories.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (context, index) {
-            final category = _kCategories[index];
-            final selected = selectedCategory == category;
-
-            return ChoiceChip(
-              label: Text(category),
-              selected: selected,
-              showCheckmark: false,
-              onSelected: (_) => setState(() => selectedCategory = category),
-              selectedColor: _kYellow,
-              backgroundColor: Colors.white,
-              side: BorderSide(color: selected ? _kYellow : _kBorder),
-              labelStyle: TextStyle(
-                color: _kBlack,
-                fontSize: 13,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(22),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
+  // ==========================================================
+  // SECTION TITLE
+  // ==========================================================
 
   Widget _buildSectionTitle(int count) {
     final isSearching = searchQuery.trim().isNotEmpty;
 
     final title = isSearching
         ? 'Results for "${searchQuery.trim()}"'
-        : (selectedCategory == _kAll ? 'All services' : selectedCategory);
+        : 'All services';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
+      padding: const EdgeInsets.fromLTRB(
+        20,
+        22,
+        20,
+        12,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -485,7 +582,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             ),
           ),
+
           const SizedBox(width: 8),
+
           Text(
             count == 1 ? '1 service' : '$count services',
             style: const TextStyle(
@@ -499,14 +598,60 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // ----------------------------------------------------------
-  // SERVICE CARD (with smaller, lighter background watermark)
-  // ----------------------------------------------------------
+  // ==========================================================
+  // SERVICE IMAGE / ICON
+  // ==========================================================
+
+  Widget _buildServiceVisual(_Service service) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: _kBlack,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(13),
+        child: service.hasImage
+            ? Image.network(
+                service.imageUrl!,
+                width: 42,
+                height: 42,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return _buildFallbackIcon(service);
+                },
+              )
+            : _buildFallbackIcon(service),
+      ),
+    );
+  }
+
+  Widget _buildFallbackIcon(_Service service) {
+    if (service.hasIcon) {
+      return Center(
+        child: Text(
+          service.icon!,
+          style: const TextStyle(fontSize: 22),
+        ),
+      );
+    }
+
+    return const Icon(
+      Icons.handyman_rounded,
+      size: 20,
+      color: _kYellow,
+    );
+  }
+
+  // ==========================================================
+  // SERVICE CARD
+  // ==========================================================
 
   Widget _buildServiceCard(_Service service) {
     return Semantics(
       button: true,
-      label: '${service.name}, ${service.subtitle}',
+      label: '${service.name}, ${service.description}',
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
@@ -527,42 +672,34 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             ),
             child: Stack(
               children: [
-                // Smaller, lighter background watermark icon in the corner
-                Positioned(
-                  right: -12,
-                  top: -12,
-                  child: Icon(
-                    service.icon,
-                    size: 72,
-                    color: _kYellow.withValues(alpha: 0.08),
+                if (!service.hasImage)
+                  Positioned(
+                    right: -12,
+                    top: -12,
+                    child: Icon(
+                      Icons.handyman_rounded,
+                      size: 72,
+                      color: _kYellow.withValues(alpha: 0.08),
+                    ),
                   ),
-                ),
+
                 Positioned.fill(
                   child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: _kBlack,
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          child: Icon(
-                            service.icon,
-                            size: 20,
-                            color: _kYellow,
-                          ),
-                        ),
+                        _buildServiceVisual(service),
+
                         const Spacer(),
+
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Expanded(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     service.name,
@@ -576,9 +713,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                       letterSpacing: -0.2,
                                     ),
                                   ),
+
                                   const SizedBox(height: 3),
+
                                   Text(
-                                    service.subtitle,
+                                    service.description.isNotEmpty
+                                        ? service.description
+                                        : 'Professional services',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -589,7 +730,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                 ],
                               ),
                             ),
+
                             const SizedBox(width: 8),
+
                             Container(
                               width: 28,
                               height: 28,
@@ -617,15 +760,66 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
+  // CATEGORY ERROR
+  // ==========================================================
+
+  Widget _buildCategoryError() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: 42,
+        horizontal: 28,
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.cloud_off_rounded,
+            size: 42,
+            color: _kTextSecondary,
+          ),
+
+          const SizedBox(height: 12),
+
+          Text(
+            categoryLoadError ??
+                'Could not load service categories.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.4,
+              color: _kTextSecondary,
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          ElevatedButton.icon(
+            onPressed: loadCategories,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try again'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kYellow,
+              foregroundColor: _kBlack,
+              elevation: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
   // EMPTY STATE
-  // ----------------------------------------------------------
+  // ==========================================================
 
   Widget _buildEmptyState() {
     final isSearching = searchQuery.trim().isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 32),
+      padding: const EdgeInsets.symmetric(
+        vertical: 40,
+        horizontal: 32,
+      ),
       child: Column(
         children: [
           Container(
@@ -641,11 +835,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               color: _kBlack,
             ),
           ),
+
           const SizedBox(height: 18),
+
           Text(
             isSearching
                 ? 'No services match "${searchQuery.trim()}"'
-                : 'No services in this category',
+                : 'No services available',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 16,
@@ -653,27 +849,42 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               color: _kBlack,
             ),
           ),
+
           const SizedBox(height: 6),
+
           const Text(
-            'Check the spelling or try a broader term like "repair".',
+            'Try another search or check back later.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, height: 1.4, color: _kTextSecondary),
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: _kTextSecondary,
+            ),
           ),
+
           const SizedBox(height: 16),
+
           OutlinedButton(
-            onPressed: resetFilters,
+            onPressed: clearSearch,
             style: OutlinedButton.styleFrom(
               foregroundColor: _kBlack,
-              side: const BorderSide(color: _kBlack, width: 1.2),
+              side: const BorderSide(
+                color: _kBlack,
+                width: 1.2,
+              ),
               minimumSize: const Size(0, 46),
-              padding: const EdgeInsets.symmetric(horizontal: 22),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 22,
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
             child: const Text(
               'Show all services',
-              style: TextStyle(fontWeight: FontWeight.w800),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],
@@ -681,13 +892,18 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // PROVIDER PROMO
-  // ----------------------------------------------------------
+  // ==========================================================
 
   Widget _buildProviderPromo() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
+      padding: const EdgeInsets.fromLTRB(
+        16,
+        22,
+        16,
+        0,
+      ),
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -712,7 +928,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     size: 24,
                   ),
                 ),
+
                 const SizedBox(width: 14),
+
                 const Expanded(
                   child: Text(
                     'Do you offer a skilled service?',
@@ -726,7 +944,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ),
               ],
             ),
+
             const SizedBox(height: 8),
+
             const Text(
               'List your service on SkillLink and get booking requests from '
               'customers near you.',
@@ -736,12 +956,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 color: Color(0xFFB5B5B0),
               ),
             ),
+
             const SizedBox(height: 16),
+
             SizedBox(
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: () => _open(const BecomeProviderScreen()),
+                onPressed: () =>
+                    _open(const BecomeProviderScreen()),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _kYellow,
                   foregroundColor: _kBlack,
@@ -752,7 +975,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ),
                 child: const Text(
                   'Become a provider',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ),
@@ -762,9 +988,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // ----------------------------------------------------------
-  // BOTTOM NAV
-  // ----------------------------------------------------------
+  // ==========================================================
+  // BOTTOM NAVIGATION
+  // ==========================================================
 
   Widget _buildBottomNav() {
     return NavigationBarTheme(
@@ -774,26 +1000,41 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         surfaceTintColor: Colors.transparent,
         height: 68,
         iconTheme: WidgetStateProperty.resolveWith((states) {
-          final selected = states.contains(WidgetState.selected);
+          final selected =
+              states.contains(WidgetState.selected);
+
           return IconThemeData(
-            color: selected ? _kBlack : const Color(0xFFB5B5B0),
+            color: selected
+                ? _kBlack
+                : const Color(0xFFB5B5B0),
             size: 24,
           );
         }),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          final selected = states.contains(WidgetState.selected);
+        labelTextStyle:
+            WidgetStateProperty.resolveWith((states) {
+          final selected =
+              states.contains(WidgetState.selected);
+
           return TextStyle(
             fontSize: 12,
-            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-            color: selected ? _kYellow : const Color(0xFFB5B5B0),
+            fontWeight:
+                selected ? FontWeight.w800 : FontWeight.w600,
+            color: selected
+                ? _kYellow
+                : const Color(0xFFB5B5B0),
           );
         }),
       ),
       child: NavigationBar(
         selectedIndex: 0,
         onDestinationSelected: (index) {
-          if (index == 1) _open(const CustomerBookingsScreen());
-          if (index == 2) _open(const CustomerProfileScreen());
+          if (index == 1) {
+            _open(const CustomerBookingsScreen());
+          }
+
+          if (index == 2) {
+            _open(const CustomerProfileScreen());
+          }
         },
         destinations: const [
           NavigationDestination(

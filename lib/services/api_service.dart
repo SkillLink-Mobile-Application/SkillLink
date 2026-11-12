@@ -13,7 +13,9 @@ import '../utils/session.dart';
 
 class ApiService {
   static const String baseUrl =
-    'https://skilllink-backend-7cqs.onrender.com';
+   'https://skilllink-backend-7cqs.onrender.com';
+
+  //static const String baseUrl = 'http://10.0.2.2:8080';
   // ============================================================
   // TEST CONNECTION
   // ============================================================
@@ -2112,6 +2114,37 @@ static Future<Map<String, dynamic>?> resetPassword({
       'success': false,
       'message': 'Unable to connect to server',
     };
+  }
+}
+
+// ============================================================
+// GET ACTIVE CATEGORIES
+// ============================================================
+
+static Future<List<dynamic>> getCategories() async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/categories'),
+      headers: {
+        'Accept': 'application/json',
+      },
+    ).timeout(const Duration(seconds: 20));
+
+    debugPrint('Categories Status: ${response.statusCode}');
+    debugPrint('Categories Response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      if (data is List) {
+        return data;
+      }
+    }
+
+    return [];
+  } catch (e) {
+    debugPrint('Get Categories Error: $e');
+    return [];
   }
 }
 
